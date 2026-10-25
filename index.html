@@ -1,0 +1,2540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>鹈鹕骑单车 · Pelican on a Bike</title>
+  <meta name="description" content="一只戴着头盔和围巾的白鹈鹕,骑着复古自行车沿海岸线追鱼。实时 3D:程序化建模、IK 骨骼、布料围巾、Gerstner 海浪、昼夜循环与合成音乐。" />
+  <style>
+/* ============================================================
+   style.css — 鹈鹕骑单车 · 仿参考 UI(暗色玻璃面板 + 标题卡)
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0d14;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+#stage {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: grab;
+}
+#stage:active { cursor: grabbing; }
+
+/* ---------- 标题卡 ---------- */
+#title {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 42%, rgba(10, 16, 30, 0.42) 0%, rgba(6, 9, 16, 0.82) 100%);
+  transition: opacity 0.7s ease;
+}
+#title.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+.t-card {
+  text-align: center;
+  color: #fff;
+  padding: 46px 64px;
+  background: rgba(13, 18, 30, 0.6);
+  border: 1px solid rgba(180, 210, 255, 0.16);
+  border-radius: 20px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+  animation: cardIn 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(26px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.t-sub {
+  font-size: 10.5px;
+  letter-spacing: 0.3em;
+  color: rgba(180, 210, 255, 0.6);
+  margin-bottom: 16px;
+}
+.t-card h1 {
+  font-family: "Noto Serif SC", "SimSun", Georgia, serif;
+  font-size: clamp(40px, 6.4vw, 68px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  margin-left: 0.22em;
+  text-shadow: 0 4px 30px rgba(120, 180, 255, 0.25);
+}
+.t-en {
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: 0.58em;
+  margin-left: 0.58em;
+  color: #9fd0ff;
+  margin-top: 10px;
+}
+.t-desc {
+  margin-top: 20px;
+  font-size: 13.5px;
+  line-height: 2;
+  color: rgba(230, 240, 255, 0.78);
+}
+.t-keys {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px 16px;
+  font-size: 12px;
+  color: rgba(220, 232, 255, 0.6);
+}
+.t-keys b {
+  color: #cfe4ff;
+  background: rgba(140, 180, 255, 0.1);
+  border: 1px solid rgba(150, 190, 255, 0.28);
+  padding: 2.5px 9px;
+  border-radius: 6px;
+  margin-right: 4px;
+  font-family: Consolas, monospace;
+  font-weight: 700;
+}
+.t-btns {
+  margin-top: 28px;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+.t-btns button {
+  appearance: none;
+  border: none;
+  background: linear-gradient(180deg, #6fb1ff, #3d7fe0);
+  color: #fff;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  padding: 14px 46px;
+  border-radius: 40px;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(70, 130, 230, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.12s, box-shadow 0.2s;
+}
+.t-btns button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(70, 130, 230, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.t-btns button.ghost {
+  background: transparent;
+  border: 1px solid rgba(160, 195, 255, 0.4);
+  color: #cfe4ff;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 13px 28px;
+  box-shadow: none;
+}
+.t-btns button.ghost:hover { background: rgba(140, 180, 255, 0.12); }
+.t-tip {
+  margin-top: 22px;
+  font-size: 11.5px;
+  color: rgba(180, 205, 245, 0.5);
+  letter-spacing: 0.06em;
+}
+
+/* ---------- HUD 通用 ---------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.8s ease 0.3s;
+}
+body.playing #hud { opacity: 1; }
+.panel {
+  position: absolute;
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid rgba(160, 195, 255, 0.16);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  color: #dfe9f8;
+  pointer-events: auto;
+}
+body.noui #hud, body.noui #toast { display: none; }
+
+/* 速度面板(右中) */
+.speed-panel {
+  right: 20px;
+  top: 50%;
+  transform: translateY(-58%);
+  padding: 16px 20px;
+  min-width: 168px;
+}
+.spd {
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+}
+.spd span {
+  font-size: 42px;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.spd small {
+  font-size: 13px;
+  color: rgba(190, 214, 250, 0.65);
+}
+.speed-panel .rows {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid rgba(160, 195, 255, 0.14);
+  padding-top: 10px;
+}
+.speed-panel .rows div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 18px;
+}
+.speed-panel .rows i {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: rgba(180, 205, 245, 0.55);
+}
+.speed-panel .rows b {
+  font-family: Consolas, monospace;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+/* 时钟(右上) */
+.clock-panel {
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+}
+.clock-panel span {
+  font-family: Consolas, monospace;
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  min-width: 86px;
+  text-align: center;
+}
+.clock-panel button {
+  appearance: none;
+  border: 1px solid rgba(160, 195, 255, 0.25);
+  background: rgba(140, 180, 255, 0.08);
+  color: #cfe4ff;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.clock-panel button:hover { background: rgba(140, 180, 255, 0.2); }
+
+/* 左下:鱼 + 成就 */
+.fish-panel {
+  left: 20px;
+  bottom: 20px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fish-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 26px;
+  font-family: Consolas, monospace;
+  font-size: 15px;
+  font-weight: 700;
+}
+.fish-line #achCount { color: rgba(190, 214, 250, 0.7); font-size: 13px; }
+#btnAch {
+  appearance: none;
+  border: 1px solid rgba(160, 195, 255, 0.25);
+  background: rgba(140, 180, 255, 0.08);
+  color: #cfe4ff;
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#btnAch:hover { background: rgba(140, 180, 255, 0.2); }
+#achPanel {
+  display: none;
+  max-height: 300px;
+  overflow: auto;
+}
+#achPanel.open { display: block; }
+#achList { display: grid; gap: 5px; min-width: 190px; }
+.ach {
+  font-size: 12px;
+  color: rgba(200, 218, 250, 0.45);
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(140, 180, 255, 0.05);
+}
+.ach.on {
+  color: #ffe9a8;
+  background: rgba(255, 200, 90, 0.1);
+}
+
+/* 右下按钮排 */
+.btn-strip {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+.btn-strip button {
+  appearance: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 195, 255, 0.2);
+  background: rgba(10, 14, 22, 0.55);
+  backdrop-filter: blur(10px);
+  color: #dfe9f8;
+  font-size: 17px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.btn-strip button:hover { background: rgba(90, 130, 200, 0.3); }
+.btn-strip button:active { transform: scale(0.92); }
+
+/* 底部提示 */
+.hint-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: rgba(190, 214, 250, 0.55);
+  background: rgba(10, 14, 22, 0.4);
+  padding: 7px 18px;
+  border-radius: 20px;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+/* 飘字 */
+.float-txt {
+  position: fixed;
+  z-index: 40;
+  font-family: "Arial Black", "Microsoft YaHei", sans-serif;
+  font-weight: 900;
+  font-size: 30px;
+  pointer-events: none;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  animation: floatUp 1.05s ease-out forwards;
+}
+@keyframes floatUp {
+  0%   { opacity: 0; transform: translateY(12px) scale(0.7); }
+  18%  { opacity: 1; transform: translateY(0) scale(1.08); }
+  100% { opacity: 0; transform: translateY(-72px) scale(1); }
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  left: 50%;
+  top: 76px;
+  transform: translateX(-50%) translateY(-8px);
+  background: rgba(12, 17, 28, 0.85);
+  border: 1px solid rgba(160, 195, 255, 0.3);
+  color: #dfe9f8;
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 60;
+}
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 760px) {
+  .t-card { padding: 30px 22px; }
+  .speed-panel { transform: translateY(-58%) scale(0.85); right: 8px; }
+  .hint-bar { display: none; }
+  .fish-panel { bottom: 76px; }
+}
+
+</style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <!-- 标题卡 -->
+  <div id="title">
+    <div class="t-card">
+      <div class="t-sub">— 实时 3D · 程序化建模 · IK 骨骼 · 布料围巾 —</div>
+      <h1>鹈鹕骑单车</h1>
+      <div class="t-en">PELICAN ON A BIKE</div>
+      <p class="t-desc">
+        一只戴着头盔和围巾的白鹈鹕,<br />骑着复古自行车沿海岸线追鱼。<br />
+        Gerstner 海浪 · 昼夜循环 · 合成音乐
+      </p>
+      <div class="t-keys">
+        <span><b>W/S</b> 加减速</span>
+        <span><b>A/D</b> 变道追鱼</span>
+        <span><b>空格</b> 跳跃</span>
+        <span><b>T</b> 撒把特技</span>
+        <span><b>B</b> 车铃</span>
+        <span><b>H</b> 嘎——</span>
+        <span><b>C</b> 镜头</span>
+        <span><b>N</b> 时间快进</span>
+        <span><b>M</b> 音乐</span>
+        <span><b>K</b> 拍照</span>
+      </div>
+      <div class="t-btns">
+        <button id="btnStart">▶ 开始骑行</button>
+        <button id="btnMuteEnter" class="ghost">🔇 静音进入</button>
+      </div>
+      <div class="t-tip">拖拽旋转视角 · 滚轮缩放 · 点鹈鹕会嘎 · 点海面会有鱼跃出</div>
+    </div>
+  </div>
+
+  <!-- 游戏内 HUD -->
+  <div id="hud">
+    <!-- 右侧速度面板 -->
+    <div class="panel speed-panel">
+      <div class="spd"><span id="hudSpeed">0.0</span><small> KM/H</small></div>
+      <div class="rows">
+        <div><i>踏频</i><b id="hudCad">0 rpm</b></div>
+        <div><i>档位</i><b id="hudGear">3 档</b></div>
+        <div><i>里程</i><b id="hudDist">0.00 km</b></div>
+        <div><i>镜头</i><b id="hudCam">电影运镜</b></div>
+      </div>
+    </div>
+
+    <!-- 右上时钟 -->
+    <div class="panel clock-panel">
+      <button id="btnClockL">◀</button>
+      <span id="hudClock">17:18 ☀️</span>
+      <button id="btnClockR">▶</button>
+    </div>
+
+    <!-- 左下:鱼 + 成就 -->
+    <div class="panel fish-panel">
+      <div class="fish-line">
+        <span id="hudFish">🐟 0</span>
+        <span id="achCount">0/14</span>
+      </div>
+      <button id="btnAch">成就</button>
+      <div id="achPanel">
+        <div id="achList"></div>
+      </div>
+    </div>
+
+    <!-- 右下按钮排 -->
+    <div class="btn-strip">
+      <button id="btnPhoto" title="K — 保存照片">📸</button>
+      <button id="btnMusic" title="M — 合成音乐">🎵</button>
+      <button id="btnCam" title="C — 切换镜头">🎬</button>
+      <button id="btnPause" title="P — 暂停">⏸</button>
+      <button id="btnFull" title="F — 全屏">⛶</button>
+    </div>
+
+    <!-- 底部提示 -->
+    <div class="hint-bar" id="hintBar">
+      W/S 加减速 · A/D 变道 · 空格 跳跃 · T 撒把 · B 车铃 · H 嘎 · C 镜头 · N 时间 · U 隐藏界面
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+/* ============================================================
+   engine3d.js — 轻量 3D 引擎(Canvas 2D 多边形渲染,零依赖)
+   · 世界坐标:x 右,z 前(骑行方向),y 上
+   · 相机:lookAt + 透视投影;近平面多边形裁剪
+   · 着色:面法线 · 平行光(太阳)+ 环境光 + 距离雾
+   · 画家算法:按视深排序填充
+   ============================================================ */
+(function () {
+  'use strict';
+  const PT = (window.PT = window.PT || {});
+  const E = (PT.E3 = {});
+
+  /* ---------- 向量 ---------- */
+  const v3 = (E.v3 = {
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+    mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    len: (a) => Math.hypot(a[0], a[1], a[2]),
+    norm(a) { const l = this.len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+    lerp: (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t],
+  });
+
+  /* ---------- 网格 ---------- */
+  function makeMesh() {
+    return { verts: [], faces: [], offset: [0, 0, 0], visible: true };
+  }
+  E.makeMesh = makeMesh;
+
+  function addVert(m, x, y, z) { m.verts.push(x, y, z); return m.verts.length / 3 - 1; }
+  E.addVert = addVert;
+
+  function addFace(m, idx, col, opt) {
+    m.faces.push({ idx, col, ds: opt && opt.ds, unlit: opt && opt.unlit, alpha: opt && opt.alpha });
+  }
+  E.addFace = addFace;
+
+  function addQuad(m, a, b, c, d, col, opt) {
+    // 兼容两种调用:传顶点索引,或直接传坐标数组
+    const idx = [a, b, c, d].map((p) => (Array.isArray(p) ? addVert(m, p[0], p[1], p[2]) : p));
+    addFace(m, idx, col, opt);
+  }
+  E.addQuad = addQuad;
+
+  /* 地面圆盘(阴影/光斑):八边形扇面,默认不发光半透明 */
+  function addDisc(m, cx, cy, cz, rx, rz, col, alpha) {
+    const idx = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      idx.push(addVert(m, cx + Math.cos(a) * rx, cy, cz + Math.sin(a) * rz));
+    }
+    addFace(m, idx, col, { unlit: true, alpha: alpha === undefined ? 0.26 : alpha });
+  }
+  E.addDisc = addDisc;
+
+  /* 椭球:程序化贴出经纬面 */
+  function addEllipsoid(m, cx, cy, cz, rx, ry, rz, col, opt) {
+    opt = opt || {};
+    const lat = opt.lat || 7, lon = opt.lon || 10, yaw = opt.yaw || 0, pitch = opt.pitch || 0;
+    const cy_ = Math.cos(yaw), sy_ = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const rot = (x, y, z) => {
+      let x1 = x * cy_ + z * sy_, z1 = -x * sy_ + z * cy_;
+      let y1 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+      return [x1, y1, z2];
+    };
+    const grid = [];
+    for (let i = 0; i <= lat; i++) {
+      const phi = (i / lat) * Math.PI;                  // 0..π 极角
+      const row = [];
+      for (let j = 0; j <= lon; j++) {
+        const th = (j / lon) * Math.PI * 2;
+        const x = Math.sin(phi) * Math.cos(th) * rx;
+        const y = Math.cos(phi) * ry;
+        const z = Math.sin(phi) * Math.sin(th) * rz;
+        const p = rot(x, y, z);
+        row.push(addVert(m, cx + p[0], cy + p[1], cz + p[2]));
+      }
+      grid.push(row);
+    }
+    for (let i = 0; i < lat; i++) {
+      for (let j = 0; j < lon; j++) {
+        addQuad(m, grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j], col, opt);
+      }
+    }
+    return grid;
+  }
+  E.addEllipsoid = addEllipsoid;
+
+  /* 圆管:两端点 + 半径(可两端半径不同 = 圆台) */
+  function addTube(m, p0, p1, r0, r1, col, opt) {
+    opt = opt || {};
+    const seg = opt.seg || 7;
+    const axis = v3.norm(v3.sub(p1, p0));
+    let up = Math.abs(axis[1]) > 0.92 ? [1, 0, 0] : [0, 1, 0];
+    const side = v3.norm(v3.cross(axis, up));
+    const up2 = v3.cross(side, axis);
+    const ring = (p, r) => {
+      const out = [];
+      for (let i = 0; i < seg; i++) {
+        const a = (i / seg) * Math.PI * 2;
+        out.push(addVert(m,
+          p[0] + (side[0] * Math.cos(a) + up2[0] * Math.sin(a)) * r,
+          p[1] + (side[1] * Math.cos(a) + up2[1] * Math.sin(a)) * r,
+          p[2] + (side[2] * Math.cos(a) + up2[2] * Math.sin(a)) * r));
+      }
+      return out;
+    };
+    const A = ring(p0, r0), B = ring(p1, r1);
+    for (let i = 0; i < seg; i++) {
+      const j = (i + 1) % seg;
+      addQuad(m, A[i], A[j], B[j], B[i], col, opt);
+    }
+    if (opt.cap !== false) {
+      addFace(m, B.slice().reverse(), col, opt);   // 端盖
+    }
+    return { A, B };
+  }
+  E.addTube = addTube;
+
+  /* 圆环(车轮):大半径 R,管半径 r,arc 画弧 */
+  function addTorus(m, cx, cy, cz, R, r, col, opt) {
+    opt = opt || {};
+    const seg = opt.seg || 16, side = opt.side || 6;
+    const plane = opt.plane || 'xy';                 // 车轮在 xy 平面(轴向 z)
+    const arc0 = opt.arc0 !== undefined ? opt.arc0 : 0;
+    const arc1 = opt.arc1 !== undefined ? opt.arc1 : Math.PI * 2;
+    const P = (u, v) => {
+      const a = arc0 + u * (arc1 - arc0), b = v * Math.PI * 2;
+      const x = Math.cos(a) * (R + Math.cos(b) * r);
+      const y = Math.sin(a) * (R + Math.cos(b) * r);
+      const z = Math.sin(b) * r;
+      if (plane === 'xy') return [cx + x, cy + y, cz + z];
+      if (plane === 'yz') return [cx + z, cy + y, cz + x];   // 轴向 x
+      return [cx + x, cy + z, cz + y];                        // 轴向 y
+    };
+    const grid = [];
+    for (let i = 0; i <= seg; i++) {
+      const row = [];
+      for (let j = 0; j < side; j++) {
+        const p = P(i / seg, j / side);
+        row.push(addVert(m, p[0], p[1], p[2]));
+      }
+      grid.push(row);
+    }
+    for (let i = 0; i < seg; i++) {
+      for (let j = 0; j < side; j++) {
+        const j2 = (j + 1) % side;
+        addQuad(m, grid[i][j], grid[i][j2], grid[i + 1][j2], grid[i + 1][j], col, opt);
+      }
+    }
+    return grid;
+  }
+  E.addTorus = addTorus;
+
+  /* 平行四边形面片(双向) */
+  function addBillboardQuad(m, p0, p1, p2, p3, col, opt) {
+    const a = addVert(m, ...p0), b = addVert(m, ...p1), c = addVert(m, ...p2), d = addVert(m, ...p3);
+    addFace(m, [a, b, c, d], col, Object.assign({ ds: true }, opt));
+  }
+  E.addBillboardQuad = addBillboardQuad;
+
+  /* ---------- 相机与投影 ---------- */
+  E.makeCamera = () => ({
+    pos: [0, 3, -8], target: [0, 2, 0], fov: 55,
+    up: [0, 1, 0],
+    basis: null,
+  });
+
+  function updateBasis(cam) {
+    const fwd = v3.norm(v3.sub(cam.target, cam.pos));
+    const right = v3.norm(v3.cross(cam.up, fwd));   // up×fwd:右手系屏幕右方向
+    const up2 = v3.cross(fwd, right);
+    cam.basis = { fwd, right, up2 };
+    return cam.basis;
+  }
+  E.updateBasis = updateBasis;
+
+  /* 点 → 屏幕坐标;返回 null = 平面后/裁掉 */
+  function project(cam, w, h, p) {
+    const rel = v3.sub(p, cam.pos);
+    const b = cam.basis;
+    const z = v3.dot(rel, b.fwd);
+    if (z < 0.18) return null;
+    const x = v3.dot(rel, b.right);
+    const y = v3.dot(rel, b.up2);
+    const f = (h / 2) / Math.tan((cam.fov * Math.PI / 180) / 2);
+    return { x: w / 2 + (f * x) / z, y: h / 2 - (f * y) / z, z };
+  }
+  E.project = project;
+
+  /* ---------- 渲染 ---------- */
+  const NEAR = 0.22;
+
+  /* 视图空间坐标(未除 z) */
+  function toView(cam, p) {
+    const rel = v3.sub(p, cam.pos);
+    const b = cam.basis;
+    return [v3.dot(rel, b.right), v3.dot(rel, b.up2), v3.dot(rel, b.fwd)];
+  }
+
+  /* 视图空间对 z=NEAR 的多边形裁剪 */
+  function clipNear3(poly) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const P = poly[i], Q = poly[(i + 1) % poly.length];
+      const pin = P[2] >= NEAR, qin = Q[2] >= NEAR;
+      if (pin) out.push(P);
+      if (pin !== qin) {
+        const t = (NEAR - P[2]) / (Q[2] - P[2]);
+        out.push([P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t, NEAR]);
+      }
+    }
+    return out;
+  }
+
+  const _drawList = [];
+
+  function render(ctx, cam, meshes, env, w, h) {
+    updateBasis(cam);
+    _drawList.length = 0;
+    const sunDir = env.sunDir, sunI = env.sunI, amb = env.ambient;
+    const fogCol = env.fog, fogNear = env.fogNear, fogFar = env.fogFar;
+    const f0 = (h / 2) / Math.tan((cam.fov * Math.PI / 180) / 2);
+    const cx0 = w / 2, cy0 = h / 2;
+
+    for (const m of meshes) {
+      if (m.visible === false) continue;
+      const V = m.verts, off = m.offset;
+      for (const f of m.faces) {
+        if (f.hidden) continue;
+        const idx = f.idx;
+        // 视图空间多边形
+        const vp = [];
+        let anyBehind = false, allBehind = true;
+        for (let i = 0; i < idx.length; i++) {
+          const vi = idx[i] * 3;
+          const p = toView(cam, [V[vi] + off[0], V[vi + 1] + off[1], V[vi + 2] + off[2]]);
+          vp.push(p);
+          if (p[2] < NEAR) { anyBehind = true; } else { allBehind = false; }
+        }
+        if (allBehind) continue;
+        const polyV = anyBehind ? clipNear3(vp) : vp;
+        if (polyV.length < 3) continue;
+        // 世界法线(双面:朝向相机一侧)
+        const a0 = idx[0] * 3, a1 = idx[1] * 3, a2 = idx[2] * 3;
+        const p0 = [V[a0] + off[0], V[a0 + 1] + off[1], V[a0 + 2] + off[2]];
+        const p1 = [V[a1] + off[0], V[a1 + 1] + off[1], V[a1 + 2] + off[2]];
+        const p2 = [V[a2] + off[0], V[a2 + 1] + off[1], V[a2 + 2] + off[2]];
+        const n = v3.cross(v3.sub(p1, p0), v3.sub(p2, p0));
+        const nl = v3.len(n) || 1;
+        n[0] /= nl; n[1] /= nl; n[2] /= nl;
+        const centroid = [(p0[0] + p1[0] + p2[0]) / 3, (p0[1] + p1[1] + p2[1]) / 3, (p0[2] + p1[2] + p2[2]) / 3];
+        const viewDir = v3.norm(v3.sub(cam.pos, centroid));
+        if (v3.dot(n, viewDir) < 0) { n[0] = -n[0]; n[1] = -n[1]; n[2] = -n[2]; }
+        // 投影
+        const poly = [];
+        let zSum = 0;
+        for (const p of polyV) {
+          const z = Math.max(NEAR, p[2]);
+          poly.push({ sx: cx0 + (f0 * p[0]) / z, sy: cy0 - (f0 * p[1]) / z, z });
+          zSum += z;
+        }
+        // 着色
+        let br;
+        if (f.unlit) br = 1;
+        else {
+          const diff = Math.max(0, v3.dot(n, sunDir)) * sunI;
+          const fill = Math.max(0, -n[1]) * 0.16;
+          br = Math.min(1.25, amb + diff + fill);
+        }
+        const zAvg = zSum / poly.length;
+        const fog = f.unlit ? 0 : Math.min(1, Math.max(0, (zAvg - fogNear) / (fogFar - fogNear)));
+        let r = f.col[0] * br, g = f.col[1] * br, b = f.col[2] * br;
+        if (fog > 0) {
+          r = r + (fogCol[0] - r) * fog;
+          g = g + (fogCol[1] - g) * fog;
+          b = b + (fogCol[2] - b) * fog;
+        }
+        _drawList.push({
+          z: zAvg, poly,
+          style: `rgba(${Math.min(255, r) | 0},${Math.min(255, g) | 0},${Math.min(255, b) | 0},${f.alpha !== undefined ? f.alpha : 1})`,
+        });
+      }
+    }
+
+    _drawList.sort((A, B) => B.z - A.z);
+    E.lastDrawn = _drawList.length;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 0.7;
+    for (const d of _drawList) {
+      const P = d.poly;
+      if (P.length < 3) continue;
+      ctx.beginPath();
+      ctx.moveTo(P[0].sx, P[0].sy);
+      for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].sx, P[i].sy);
+      ctx.closePath();
+      ctx.fillStyle = d.style;
+      ctx.strokeStyle = d.style;
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  E.render = render;
+  E.NEAR = NEAR;
+
+  /* ---------- 颜色插值 ---------- */
+  function lerpColor(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  E.lerpColor = lerpColor;
+})();
+
+</script>
+  <script>
+/* ============================================================
+   world3d.js — 海岸世界
+   布局:x=0 是公路中线,车道 x∈{-2.2,0,2.2};公路 x∈[-4.5,4.5];
+        左侧沙滩草地 x<-4.5,右侧沙岸+大海 x>4.5;
+        骑行方向 +z,世界分段滚动回收。
+   ============================================================ */
+(function () {
+  'use strict';
+  const PT = (window.PT = window.PT || {});
+  const { v3, makeMesh, addVert, addDisc, addEllipsoid, addTube, addTorus, addBillboardQuad, addQuad, addFace } = PT.E3;
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  const LANE_X = [-2.2, 0, 2.2];
+  const ROAD_HALF = 4.5;
+  const SEA_X = 7.2;                    // 海岸线
+  const SEG_LEN = 60;                   // 滚动段长
+  const SEG_N = 5;                      // 段数(总长 300,回卷边界在身后 90m)
+
+  const W = {
+    time: 17.3,                         // 一天里的时刻(小时)
+    daySpeed: 24 / (60 * 8),            // 8 分钟一昼夜
+    scrollZ: 0,                         // 累计骑行距离(米)
+    meshes: [],
+  };
+
+  /* ---------- 环境(昼夜) ---------- */
+  const KEYS = [                        // [小时, 天顶色, 地平色, 雾色, 环境光, 太阳强度]
+    [0.0, [8, 12, 30], [22, 30, 58], [10, 16, 38], 0.30, 0.06],
+    [5.0, [12, 20, 48], [60, 58, 92], [40, 44, 78], 0.32, 0.10],
+    [6.5, [70, 92, 150], [255, 160, 110], [230, 160, 120], 0.52, 0.75],
+    [9.0, [88, 158, 224], [190, 224, 244], [196, 226, 240], 0.72, 1.0],
+    [15.0, [92, 164, 228], [196, 228, 246], [200, 228, 242], 0.74, 1.0],
+    [18.0, [96, 120, 190], [255, 172, 100], [240, 168, 108], 0.55, 0.85],
+    [19.5, [40, 52, 100], [180, 110, 90], [120, 90, 96], 0.38, 0.30],
+    [21.0, [14, 20, 44], [36, 44, 76], [24, 30, 56], 0.31, 0.08],
+    [24.0, [8, 12, 30], [22, 30, 58], [10, 16, 38], 0.30, 0.06],
+  ];
+
+  function envAt(hours) {
+    const h = ((hours % 24) + 24) % 24;
+    let i = 0;
+    while (i < KEYS.length - 2 && KEYS[i + 1][0] < h) i++;
+    const A = KEYS[i], B = KEYS[i + 1];
+    const t = (h - A[0]) / (B[0] - A[0]);
+    const lc = (a, b) => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * t);
+    const sunAng = ((h - 6) / 12) * Math.PI;               // 6 点升起 18 点落下
+    const elev = Math.sin(sunAng);
+    const sunDir = [-Math.cos(sunAng) * 0.55, Math.max(0.06, elev), Math.cos(sunAng) * 0.35];
+    return {
+      hour: h,
+      skyTop: lc(A[1], B[1]), skyBot: lc(A[2], B[2]), fog: lc(A[3], B[3]),
+      ambient: A[4] + (B[4] - A[4]) * t,
+      sunI: A[5] + (B[5] - A[5]) * t,
+      sunDir: v3.norm(sunDir),
+      sunElev: elev,
+      isNight: elev < 0.02,
+    };
+  }
+  W.env = envAt(W.time);
+
+  /* ============================================================
+     地形段:公路 + 虚线 + 沙滩 + 草地 + 路缘
+     ============================================================ */
+  function buildGroundSegment() {
+    const m = makeMesh();
+    const L = SEG_LEN, z0 = 0, z1 = L;
+    const dark = [52, 54, 60], light = [64, 66, 74];
+    // 路面(两块错色)
+    addQuad(m, ...rect(-ROAD_HALF, z0, ROAD_HALF, z0 + L / 2, -0.02), dark, { ds: true });
+    addQuad(m, ...rect(-ROAD_HALF, z0 + L / 2, ROAD_HALF, z1, -0.02), light, { ds: true });
+    // 车道虚线(x=-1.1 与 1.1?三车道 → 两条分界线)
+    for (const lx of [-1.1, 1.1]) {
+      for (let z = z0; z < z1; z += 6) {
+        addQuad(m, ...rect(lx - 0.09, z, lx + 0.09, z + 2.6, 0.005), [225, 224, 210], { ds: true });
+      }
+    }
+    // 路缘线
+    addQuad(m, ...rect(-ROAD_HALF - 0.35, z0, -ROAD_HALF + 0.05, z1, 0.01), [200, 198, 186], { ds: true });
+    addQuad(m, ...rect(ROAD_HALF - 0.05, z0, ROAD_HALF + 0.35, z1, 0.01), [200, 198, 186], { ds: true });
+    // 左侧草地 → 沙滩 → 草地
+    addQuad(m, ...rect(-60, z0, -ROAD_HALF - 0.35, z1, -0.06), [96, 148, 84], { ds: true });
+    addQuad(m, ...rect(-13, z0, -ROAD_HALF - 0.35, z1, -0.04), [214, 190, 142], { ds: true });   // 左沙带
+    // 右侧沙滩 → 海岸
+    addQuad(m, ...rect(ROAD_HALF + 0.35, z0, SEA_X + 8, z1, -0.05), [222, 198, 150], { ds: true });
+    // 潮湿沙线
+    addQuad(m, ...rect(SEA_X - 1.6, z0, SEA_X + 8, z1, -0.03), [196, 174, 132], { ds: true });
+    return m;
+  }
+  function rect(x0, z0, x1, z1, y) {
+    return [
+      [x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1],
+    ];
+  }
+
+  /* ---------- 棕榈树 ---------- */
+  function buildPalm(h, lean) {
+    const m = makeMesh();
+    const trunkCol = [139, 105, 70], trunkCol2 = [120, 88, 58];
+    const N = 5;
+    let px = 0, pz = 0, py = 0;
+    const pts = [[0, 0, 0]];
+    for (let i = 0; i < N; i++) {
+      const t = (i + 1) / N;
+      px = lean * t * t * 0.9;
+      py = h * t;
+      pz = Math.sin(t * 3 + lean) * 0.18;
+      pts.push([px, py, pz]);
+    }
+    for (let i = 0; i < N; i++) {
+      const r = 0.22 * (1 - i / N * 0.55);
+      addTube(m, pts[i], pts[i + 1], r, r * 0.82, i % 2 ? trunkCol : trunkCol2, { seg: 5, cap: false });
+    }
+    // 树冠
+    const top = pts[N];
+    const fr = 7;
+    for (let i = 0; i < fr; i++) {
+      const a = (i / fr) * Math.PI * 2 + lean;
+      const len = 1.9 + (i % 3) * 0.3;
+      const droop = -0.9;
+      const tip = [top[0] + Math.cos(a) * len, top[1] + droop, top[2] + Math.sin(a) * len * 0.8];
+      const mid = [top[0] + Math.cos(a) * len * 0.5, top[1] + 0.32, top[2] + Math.sin(a) * len * 0.4];
+      addTube(m, top, tip, 0.34, 0.02, i % 2 ? [62, 138, 74] : [48, 120, 62], { seg: 4, cap: false });
+      // 中脉抬升
+      addTube(m, [mid[0], mid[1] + 0.1, mid[2]], tip, 0.02, 0.02, [50, 110, 58], { seg: 3, cap: false });
+    }
+    // 椰子
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1;
+      addEllipsoid(m, top[0] + Math.cos(a) * 0.25, top[1] - 0.28, top[2] + Math.sin(a) * 0.25,
+        0.14, 0.16, 0.14, [110, 82, 48], { lat: 4, lon: 5 });
+    }
+    // 树影
+    addDisc(m, lean * 0.35 + 0.2, 0.028, 0.15, 0.85, 0.85, [22, 32, 44], 0.18);
+    return m;
+  }
+
+  /* ---------- 路灯 ---------- */
+  function buildLamp() {
+    const m = makeMesh();
+    addTube(m, [0, 0, 0], [0, 4.6, 0], 0.09, 0.07, [70, 74, 82], { seg: 5, cap: false });
+    addTube(m, [0, 4.6, 0], [0.85, 5.0, 0], 0.06, 0.05, [70, 74, 82], { seg: 4, cap: false });
+    addEllipsoid(m, 1.0, 4.86, 0, 0.2, 0.14, 0.2, [250, 236, 190], { lat: 4, lon: 6, unlit: true });
+    addDisc(m, 0.5, 0.028, 0, 0.16, 0.16, [22, 32, 44], 0.2);
+    m.isLamp = true;
+    return m;
+  }
+
+  /* ---------- 长椅 ---------- */
+  function buildBench() {
+    const m = makeMesh();
+    const col = [58, 96, 76], legC = [40, 42, 46];
+    addTube(m, [-0.55, 0.22, 0], [0.55, 0.22, 0], 0.045, 0.045, col, { seg: 4, cap: false });
+    addTube(m, [-0.55, 0.42, -0.12], [0.55, 0.42, -0.12], 0.045, 0.045, col, { seg: 4, cap: false });
+    addTube(m, [-0.55, 0.62, -0.2], [0.55, 0.62, -0.2], 0.04, 0.04, col, { seg: 4, cap: false });
+    for (const sx of [-0.48, 0.48]) {
+      addTube(m, [sx, 0, -0.02], [sx, 0.45, -0.02], 0.035, 0.035, legC, { seg: 4 });
+      addTube(m, [sx, 0.45, -0.02], [sx, 0.68, -0.22], 0.03, 0.03, legC, { seg: 4, cap: false });
+    }
+    addDisc(m, 0, 0.028, -0.05, 0.72, 0.42, [22, 32, 44], 0.16);
+    return m;
+  }
+
+  /* ---------- 沙滩遮阳伞 ---------- */
+  function buildUmbrella() {
+    const m = makeMesh();
+    const cols = [[[224, 88, 70], [240, 238, 228]], [[70, 130, 190], [240, 238, 228]], [[240, 180, 70], [240, 238, 228]]];
+    const cc = cols[(Math.random() * cols.length) | 0];
+    const lean = 0.18;
+    addTube(m, [0, 0, 0], [lean * 1.9, 1.85, 0], 0.035, 0.03, [200, 198, 192], { seg: 5, cap: false });
+    const top = [lean * 1.9, 1.85, 0];
+    addEllipsoid(m, top[0], top[1], top[2], 1.05, 0.26, 1.05, cc[0], { lat: 3, lon: 9 });
+    addEllipsoid(m, top[0], top[1] + 0.05, top[2], 0.7, 0.2, 0.7, cc[1], { lat: 3, lon: 9 });
+    addEllipsoid(m, top[0] + 0.05, top[1] + 0.3, top[2], 0.03, 0.1, 0.03, [200, 198, 192], { lat: 3, lon: 4 });
+    addDisc(m, 0.15, 0.028, 0, 1.0, 1.0, [22, 32, 44], 0.15);
+    return m;
+  }
+
+  /* ---------- 礁石 ---------- */
+  function buildRocks() {
+    const m = makeMesh();
+    for (let i = 0; i < 3; i++) {
+      const rx = 0.22 + Math.random() * 0.3;
+      addEllipsoid(m, i * 0.7 - 0.5, rx * 0.4, Math.sin(i * 2.3) * 0.4,
+        rx, rx * 0.6, rx * 0.9, i % 2 ? [128, 126, 124] : [112, 110, 108], { lat: 3, lon: 6, yaw: Math.random() * 3 });
+    }
+    addDisc(m, 0, 0.028, 0, 1.15, 0.6, [22, 32, 44], 0.14);
+    return m;
+  }
+
+  /* ---------- 云 ---------- */
+  function buildCloud(seed) {
+    const m = makeMesh();
+    const n = 4 + (seed % 3);
+    for (let i = 0; i < n; i++) {
+      const rx = rand(2.4, 4.6), ry = rx * rand(0.32, 0.44);
+      addEllipsoid(m, rand(-4, 4), rand(-0.5, 0.7), rand(-1.6, 1.6), rx, ry, rx * 0.8, [255, 255, 255],
+        { lat: 4, lon: 7, unlit: true, ds: true, alpha: 0.92 });
+    }
+    return m;
+  }
+
+  /* ---------- 大海(Gerstner 波浪网格) ---------- */
+  const SEA = { cols: 14, rows: 40, mesh: null, base: [] };
+  function buildSea() {
+    const m = makeMesh();
+    const { cols, rows } = SEA;
+    for (let i = 0; i <= rows; i++) {
+      const row = [];
+      for (let j = 0; j <= cols; j++) {
+        const x = 15.2 + j * 5.6;                   // 从沙滩外缘向深海铺
+        const z = -40 + i * 8;
+        row.push(addVert(m, x, 0, z));
+      }
+      SEA.base.push(row);
+    }
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        const depth = j / cols;                     // 越远越深
+        const col = [58 + depth * -20, 132 + depth * -18, 168 + depth * 8];
+        addQuad(m, SEA.base[i][j], SEA.base[i][j + 1], SEA.base[i + 1][j + 1], SEA.base[i + 1][j], col, { ds: true });
+      }
+    }
+    SEA.mesh = m;
+    return m;
+  }
+  function updateSea(t) {
+    const V = SEA.mesh.verts;
+    for (let i = 0; i <= SEA.rows; i++) {
+      for (let j = 0; j <= SEA.cols; j++) {
+        const x0 = 15.2 + j * 5.6, z0 = -40 + i * 8;
+        const k = (i * (SEA.cols + 1) + j) * 3 + 1;
+        const w1 = Math.sin(t * 1.15 + x0 * 0.35 + z0 * 0.14) * 0.24;
+        const w2 = Math.sin(t * 0.72 - z0 * 0.21 + x0 * 0.12) * 0.16;
+        const w3 = Math.sin(t * 1.9 + (x0 + z0) * 0.5) * 0.055;
+        const decay = Math.min(1, Math.max(0.25, (j) / 3));
+        V[k] = -0.28 + (w1 + w2 + w3) * decay;
+      }
+    }
+  }
+
+  /* ============================================================
+     初始化:分段世界 + 沿路道具
+     ============================================================ */
+  const segments = [];                 // {mesh, palmMeshes, lamps, z}
+  const clouds = [];
+  const stars = [];
+  const gulls = [];
+
+  function init() {
+    // 地形 + 道具分段
+    for (let s = 0; s < SEG_N; s++) {
+      const seg = { z: s * SEG_LEN, mesh: buildGroundSegment(), props: [] };
+      const addProp = (mesh, x, zLocal) => {
+        mesh.baseZ = zLocal;
+        mesh.offset = [x, 0, zLocal];
+        seg.props.push(mesh);
+      };
+      // 棕榈(左侧沙带)
+      for (let i = 0; i < 5; i++) {
+        addProp(buildPalm(rand(3.4, 5.6), rand(-1, 1)), rand(-11.5, -7.5), rand(2, SEG_LEN - 2));
+      }
+      // 右侧海岸孤棕榈
+      if (Math.random() < 0.7) {
+        addProp(buildPalm(rand(2.8, 4), rand(1, 2)), rand(SEA_X - 3.5, SEA_X - 1.2), rand(4, SEG_LEN - 4));
+      }
+      // 路灯(右侧路肩)
+      for (let i = 0; i < 2; i++) {
+        addProp(buildLamp(), ROAD_HALF + 1.1, 12 + i * 30);
+      }
+      // 长椅(左侧路肩)
+      if (Math.random() < 0.6) {
+        addProp(buildBench(), -(ROAD_HALF + 1.3), rand(6, SEG_LEN - 6));
+      }
+      // 沙滩遮阳伞
+      if (Math.random() < 0.55) {
+        addProp(buildUmbrella(), rand(-10.2, -8.2), rand(5, SEG_LEN - 5));
+      }
+      // 海岸礁石
+      if (Math.random() < 0.7) {
+        addProp(buildRocks(), rand(SEA_X - 1.5, SEA_X - 0.5), rand(3, SEG_LEN - 3));
+      }
+      segments.push(seg);
+    }
+    W.segments = segments;
+
+    // 云
+    for (let i = 0; i < 7; i++) {
+      const c = buildCloud(i);
+      c.offset = [rand(-120, 120), rand(16, 34), rand(60, 300)];
+      clouds.push(c);
+    }
+    W.clouds = clouds;
+
+    // 星星
+    for (let i = 0; i < 160; i++) {
+      stars.push({ a: rand(0, Math.PI * 2), e: rand(0.05, 1.4), s: rand(0.7, 1.8), tw: rand(0, 9) });
+    }
+    W.stars = stars;
+
+    // 海鸥
+    for (let i = 0; i < 5; i++) {
+      gulls.push({ x: rand(8, 26), y: rand(4.5, 8.5), z: rand(-20, 160), ph: rand(0, 9), v: rand(1.5, 3.2), dir: Math.random() < 0.5 ? 1 : -1 });
+    }
+    W.gulls = gulls;
+
+    buildSea();
+    W.seaMesh = SEA.mesh;
+    W.laneX = LANE_X;
+    W.ROAD_HALF = ROAD_HALF;
+    W.SEA_X = SEA_X;
+  }
+
+  /* ============================================================
+     更新与绘制
+     ============================================================ */
+  function update(dt, speed, t) {
+    W.t = t;
+    W.time += dt * W.daySpeed;
+    W.env = envAt(W.time);
+    const dz = speed * dt;
+    W.scrollZ += dz;
+    for (const seg of segments) {
+      seg.z -= dz;
+      if (seg.z < -SEG_LEN * 1.5) seg.z += SEG_LEN * SEG_N;
+    }
+    for (const c of clouds) {
+      c.offset[0] -= dt * 1.2;
+      c.offset[2] -= dz * 0.12;                     // 远景云视差
+      if (c.offset[0] < -140) c.offset[0] = 140;
+      if (c.offset[2] < -60) c.offset[2] += 360;
+    }
+    for (const g of gulls) {
+      g.z += (g.v * g.dir - dz * 0.55) * dt;        // 世界中的飞鸟
+      g.x += Math.sin(t * 0.6 + g.ph) * 0.6 * dt;
+      g.y += Math.sin(t * 1.1 + g.ph * 2) * 0.4 * dt;
+      if (g.z < -25) { g.z = 165; g.x = rand(8, 26); }
+      if (g.z > 175) g.z = -20;
+      g.x = Math.min(27, Math.max(6, g.x));
+    }
+    updateSea(t);
+  }
+
+  /* 天空背景(2D 渐变)+ 太阳/月亮/星星 */
+  function drawSky(ctx, w, h, cam, env, t) {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, `rgb(${env.skyTop.map((x) => x | 0).join(',')})`);
+    g.addColorStop(1, `rgb(${env.skyBot.map((x) => x | 0).join(',')})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // 星星
+    if (env.sunElev < 0.18) {
+      const starA = Math.min(1, Math.max(0, (0.18 - env.sunElev) / 0.2));
+      ctx.fillStyle = '#fff';
+      for (const s of stars) {
+        // 方位角 a,仰角 e → 远点方向
+        const dir = [Math.cos(s.a) * Math.cos(s.e), Math.sin(s.e), Math.sin(s.a) * Math.cos(s.e)];
+        const p = PT.E3.project(cam, w, h, v3.add(cam.pos, v3.mul(dir, 400)));
+        if (!p) continue;
+        const tw = 0.5 + 0.5 * Math.sin(t * 2 + s.tw);
+        ctx.globalAlpha = starA * (0.35 + 0.55 * tw);
+        ctx.fillRect(p.x, p.y, s.s, s.s);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // 太阳 / 月亮
+    const bodyDir = env.isNight
+      ? [-env.sunDir[0], Math.max(0.15, -env.sunElev * 0.8 + 0.2), -env.sunDir[2]]
+      : env.sunDir;
+    const sunP = PT.E3.project(cam, w, h, v3.add(cam.pos, v3.mul(v3.norm(bodyDir), 380)));
+    if (sunP) {
+      const r = env.isNight ? 26 : 34;
+      const glow = ctx.createRadialGradient(sunP.x, sunP.y, r * 0.3, sunP.x, sunP.y, r * 6);
+      if (env.isNight) {
+        glow.addColorStop(0, 'rgba(220,228,255,0.5)');
+        glow.addColorStop(1, 'rgba(220,228,255,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(sunP.x - r * 6, sunP.y - r * 6, r * 12, r * 12);
+        ctx.fillStyle = '#e8edfa';
+        ctx.beginPath(); ctx.arc(sunP.x, sunP.y, r, 0, 7); ctx.fill();
+        ctx.fillStyle = `rgba(180,190,215,0.5)`;
+        ctx.beginPath(); ctx.arc(sunP.x - r * 0.3, sunP.y - r * 0.2, r * 0.22, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(sunP.x + r * 0.25, sunP.y + r * 0.3, r * 0.16, 0, 7); ctx.fill();
+      } else {
+        const warm = env.sunElev < 0.3;
+        glow.addColorStop(0, warm ? 'rgba(255,200,130,0.75)' : 'rgba(255,244,200,0.7)');
+        glow.addColorStop(1, 'rgba(255,220,150,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(sunP.x - r * 6, sunP.y - r * 6, r * 12, r * 12);
+        ctx.fillStyle = warm ? '#ffd9a0' : '#fff7dd';
+        ctx.beginPath(); ctx.arc(sunP.x, sunP.y, r, 0, 7); ctx.fill();
+      }
+    }
+
+    // 地平线岛屿(远山剪影,相机相对,随环境变色)
+    const fwd = cam.basis ? cam.basis.fwd : [0, 0, 1];
+    const dirH = v3.norm([fwd[0], 0, fwd[2]]);
+    const rightH = [dirH[2], 0, -dirH[0]];
+    const isoCol = PT.E3.lerpColor(env.fog, [46, 66, 88], env.isNight ? 0.5 : 0.34);
+    ctx.fillStyle = `rgba(${isoCol[0] | 0},${isoCol[1] | 0},${isoCol[2] | 0},0.9)`;
+    for (const [side, dist, wWorld, hPx] of [[30, 185, 26, 16], [62, 205, 40, 24], [98, 175, 20, 11]]) {
+      const cx = v3.add(v3.add(cam.pos, v3.mul(dirH, dist)), v3.mul(rightH, side));
+      const c2 = v3.add(cx, v3.mul(rightH, wWorld));
+      const p1 = PT.E3.project(cam, w, h, [cx[0], 0.2, cx[2]]);
+      const p2 = PT.E3.project(cam, w, h, [c2[0], 0.2, c2[2]]);
+      if (p1 && p2) {
+        const wid = Math.abs(p2.x - p1.x);
+        ctx.beginPath();
+        ctx.ellipse((p1.x + p2.x) / 2, p1.y + hPx * 0.25, wid / 2 + wid * 0.12, hPx, 0, Math.PI, 0);
+        ctx.fill();
+      }
+    }
+
+    // 云(受昼夜染色)
+    const tint = env.isNight ? [120, 130, 160] : env.sunElev < 0.3 ? [255, 200, 160] : [255, 255, 255];
+    for (const c of clouds) {
+      for (const f of c.faces) {
+        f.col = tint;
+      }
+    }
+  }
+
+  /* 夜晚路灯灯光 + 太阳反光带 + 车灯光锥(2D 叠加) */
+  function drawGlows(ctx, w, h, cam, env, t, laneX) {
+    // 海面日光反射带
+    if (!env.isNight && env.sunElev > 0) {
+      const seaP = PT.E3.project(cam, w, h, [SEA_X + 22, 0.3, 60]);
+      const nearP = PT.E3.project(cam, w, h, [SEA_X + 5, -0.1, 12]);
+      if (seaP && nearP) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const g = ctx.createLinearGradient(nearP.x, nearP.y, seaP.x, seaP.y);
+        const c = env.sunElev < 0.3 ? '255,180,110' : '255,240,200';
+        g.addColorStop(0, `rgba(${c},0.24)`);
+        g.addColorStop(1, `rgba(${c},0.05)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(nearP.x - 30, nearP.y);
+        ctx.lineTo(nearP.x + 90, nearP.y);
+        ctx.lineTo(seaP.x + 70, seaP.y);
+        ctx.lineTo(seaP.x - 40, seaP.y);
+        ctx.closePath();
+        ctx.fill();
+        // 波光碎片
+        ctx.fillStyle = `rgba(${c},0.35)`;
+        for (let i = 0; i < 12; i++) {
+          const zz = 8 + ((i * 17 + (t * 6) % 17) % 70);
+          const p = PT.E3.project(cam, w, h, [SEA_X + 6 + (i % 4) * 5, 0.15, zz]);
+          if (p) ctx.fillRect(p.x - 8, p.y, 16 + (i % 3) * 8, 1.6);
+        }
+        ctx.restore();
+      }
+    }
+    // 路灯暖光(夜)
+    if (env.isNight || env.sunElev < 0.12) {
+      for (const lamp of W.lampPositions) {
+        const p = PT.E3.project(cam, w, h, [lamp[0] + 1.0, 4.8, lamp[2]]);
+        if (!p) continue;
+        const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 46);
+        g.addColorStop(0, 'rgba(255,214,140,0.5)');
+        g.addColorStop(1, 'rgba(255,214,140,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(p.x - 46, p.y - 46, 92, 92);
+        ctx.fillStyle = 'rgba(255,230,180,0.9)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3.2, 0, 7); ctx.fill();
+      }
+      // 车灯光锥
+      if (laneX !== undefined) {
+        const lampP = PT.E3.project(cam, w, h, [laneX, 0.95, 0.72]);
+        const farP = PT.E3.project(cam, w, h, [laneX, 0.05, 7.5]);
+        if (lampP && farP) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          const grad = ctx.createLinearGradient(lampP.x, lampP.y, farP.x, farP.y);
+          grad.addColorStop(0, 'rgba(255,228,160,0.34)');
+          grad.addColorStop(1, 'rgba(255,228,160,0)');
+          ctx.fillStyle = grad;
+          const dx = farP.x - lampP.x, dy = farP.y - lampP.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = -dy / len, ny = dx / len;
+          ctx.beginPath();
+          ctx.moveTo(lampP.x + nx * 10, lampP.y + ny * 10);
+          ctx.lineTo(lampP.x - nx * 10, lampP.y - ny * 10);
+          ctx.lineTo(farP.x - nx * 60, farP.y - ny * 60);
+          ctx.lineTo(farP.x + nx * 60, farP.y + ny * 60);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        // 灯芯光斑
+        const lp = PT.E3.project(cam, w, h, [laneX, 0.95, 0.72]);
+        if (lp) {
+          const g2 = ctx.createRadialGradient(lp.x, lp.y, 1, lp.x, lp.y, 22);
+          g2.addColorStop(0, 'rgba(255,236,180,0.85)');
+          g2.addColorStop(1, 'rgba(255,236,180,0)');
+          ctx.fillStyle = g2;
+          ctx.fillRect(lp.x - 22, lp.y - 22, 44, 44);
+        }
+      }
+    }
+  }
+
+  /* 海岸泡沫浪线(每帧构建,随海面滚动) */
+  function buildFoam(t) {
+    const m = makeMesh();
+    for (let k = 0; k < 3; k++) {
+      const x = 14.6 - k * 1.15 - Math.sin(t * 0.55 + k * 1.9) * 0.85;
+      const a = 0.32 - k * 0.07 + Math.sin(t * 0.8 + k * 2.4) * 0.14;
+      addQuad(m, [x - 0.34, 0.045, -46], [x + 0.34, 0.045, -46], [x + 0.34, 0.045, 290], [x - 0.34, 0.045, 290],
+        [242, 249, 252], { unlit: true, alpha: Math.max(0.05, a) });
+    }
+    return m;
+  }
+
+  /* 海鸥(每帧构建:扑翼) */
+  function buildGullMeshes(t) {
+    const out = [];
+    for (const g of gulls) {
+      const m = makeMesh();
+      const flap = Math.sin(t * 7 + g.ph * 3);
+      addEllipsoid(m, g.x, g.y, g.z, 0.1, 0.07, 0.24, [235, 238, 242], { lat: 3, lon: 5 });
+      addEllipsoid(m, g.x, g.y + 0.03, g.z + 0.24, 0.05, 0.045, 0.07, [226, 230, 236], { lat: 3, lon: 4 });
+      addBillboardQuad(m,
+        [g.x - 0.06, g.y + flap * 0.22, g.z + 0.1], [g.x - 0.72, g.y + flap * 0.34, g.z + 0.16],
+        [g.x - 0.76, g.y + flap * 0.34 - 0.05, g.z + 0.08], [g.x - 0.06, g.y + flap * 0.22 - 0.05, g.z + 0.02],
+        [242, 245, 248]);
+      addBillboardQuad(m,
+        [g.x + 0.06, g.y + flap * 0.22, g.z + 0.1], [g.x + 0.72, g.y + flap * 0.34, g.z + 0.16],
+        [g.x + 0.76, g.y + flap * 0.34 - 0.05, g.z + 0.08], [g.x + 0.06, g.y + flap * 0.22 - 0.05, g.z + 0.02],
+        [242, 245, 248]);
+      out.push(m);
+    }
+    return out;
+  }
+
+  /* 收集所有网格供渲染(地形滚动) */
+  function collectMeshes() {
+    const out = [];
+    W.lampPositions = [];
+    for (const seg of segments) {
+      seg.mesh.offset = [0, 0, seg.z];
+      out.push(seg.mesh);
+      for (const prop of seg.props) {
+        prop.offset[2] = seg.z + prop.baseZ;
+        out.push(prop);
+        if (prop.isLamp) W.lampPositions.push(prop.offset.slice());
+      }
+    }
+    SEA.mesh.offset = [0, 0, -(W.scrollZ % 40)];    // 海面跟随骑行滚动
+    out.push(SEA.mesh);
+    out.push(buildFoam(W.t || 0));
+    for (const gm of buildGullMeshes(W.t || 0)) out.push(gm);
+    for (const c of clouds) out.push(c);
+    return out;
+  }
+
+  PT.world3d = {
+    W, init, update, drawSky, drawGlows, collectMeshes,
+    buildPalm, LANE_X, ROAD_HALF, SEA_X, SEG_LEN, envAt,
+  };
+})();
+
+</script>
+  <script>
+/* ============================================================
+   pelican3d.js — 程序化 3D 鹈鹕 + 复古自行车
+   每帧即时重建网格(局部坐标:y 上,z 前;原点=地面)
+   s = { t, cad, wheel, speed, laneX, jumpY, lean, pitch,
+         honk, noHands, air, pedAngle, bell }
+   返回 { mesh, head, saddle, bellPos, scarfMesh }
+   ============================================================ */
+(function () {
+  'use strict';
+  const PT = (window.PT = window.PT || {});
+  const { v3, makeMesh, addVert, addEllipsoid, addTube, addTorus, addBillboardQuad, addQuad, addFace, addDisc } = PT.E3;
+
+  /* 颜色 */
+  const C = {
+    body: [245, 248, 250], bodyShade: [226, 233, 238],
+    beak: [244, 158, 54], beakDark: [226, 132, 38], pouch: [246, 148, 52],
+    eye: [24, 22, 26],
+    helmet: [42, 148, 138], helmetDark: [34, 122, 114],
+    scarf: [212, 62, 50],
+    leg: [240, 150, 60],
+    frame: [32, 32, 36], tire: [30, 30, 33], rim: [196, 202, 210],
+    metal: [172, 178, 186], saddle: [118, 78, 48],
+    basket: [168, 116, 62], bell: [210, 214, 220], lamp: [255, 232, 176],
+    fishIn: [205, 216, 224],
+  };
+
+  /* ---------- 围巾(Verlet 缎带) ---------- */
+  const SCARF_N = 9, SEG = 0.095;
+  const scarf = { pts: [], old: [] };
+  for (let i = 0; i < SCARF_N; i++) { scarf.pts.push([0, 1.4, -0.4]); scarf.old.push([0, 1.4, -0.4]); }
+
+  function updateScarf(dt, anchor, speed, t) {
+    scarf.pts[0] = anchor.slice();
+    scarf.old[0] = anchor.slice();
+    const wind = 1.6 + speed * 0.02;
+    for (let i = 1; i < SCARF_N; i++) {
+      const p = scarf.pts[i], o = scarf.old[i];
+      const vx = (p[0] - o[0]) * 0.97, vy = (p[1] - o[1]) * 0.97, vz = (p[2] - o[2]) * 0.97;
+      o[0] = p[0]; o[1] = p[1]; o[2] = p[2];
+      p[0] += vx + Math.sin(t * 7 + i * 0.9) * 0.0016;
+      p[1] += vy - 0.9 * dt * dt * 60;
+      p[2] += vz - wind * dt * dt * 60 * 0.5;   // 迎风:围巾向后飘
+    }
+    for (let k = 0; k < 4; k++) {
+      for (let i = 1; i < SCARF_N; i++) {
+        const a = scarf.pts[i - 1], b = scarf.pts[i];
+        const d = v3.sub(b, a);
+        const l = v3.len(d) || 1;
+        const diff = (l - SEG) / l;
+        if (i === 1) {
+          b[0] -= d[0] * diff; b[1] -= d[1] * diff; b[2] -= d[2] * diff;
+        } else {
+          const h = diff * 0.5;
+          a[0] += d[0] * h; a[1] += d[1] * h; a[2] += d[2] * h;
+          b[0] -= d[0] * h; b[1] -= d[1] * h; b[2] -= d[2] * h;
+        }
+      }
+      scarf.pts[0] = anchor.slice();
+    }
+  }
+
+  function buildScarfMesh() {
+    const m = makeMesh();
+    for (let i = 0; i < SCARF_N - 1; i++) {
+      const a = scarf.pts[i], b = scarf.pts[i + 1];
+      const w0 = 0.075 * (1 - i / SCARF_N * 0.5), w1 = 0.075 * (1 - (i + 1) / SCARF_N * 0.5);
+      const dir = v3.norm(v3.sub(b, a));
+      const side = v3.norm(v3.cross(dir, [0, 1, 0.2]));
+      const a0 = v3.add(a, v3.mul(side, w0)), a1 = v3.add(a, v3.mul(side, -w0));
+      const b0 = v3.add(b, v3.mul(side, w1)), b1 = v3.add(b, v3.mul(side, -w1));
+      addBillboardQuad(m, a0, b0, b1, a1, i % 2 ? C.scarf : [196, 52, 42]);
+    }
+    return m;
+  }
+
+  /* ---------- 组装 ---------- */
+  function build(s) {
+    const m = makeMesh();
+    const t = s.t;
+    const G = (p) => {                    // 组变换:侧倾(绕 z)→ 平移
+      const cl = Math.cos(s.lean), sl = Math.sin(s.lean);
+      let x = p[0], y = p[1], z = p[2];
+      let x1 = x * cl - y * sl, y1 = x * sl + y * cl;
+      return [x1 + s.laneX, y1 + s.jumpY, z];
+    };
+    const tube = (p0, p1, r0, r1, col, opt) => addTube(m, G(p0), G(p1), r0, r1, col, opt);
+    const ell = (p, rx, ry, rz, col, opt) => addEllipsoid(m, ...G(p), rx, ry, rz, col, opt);
+
+    const wheelR = 0.34;
+
+    /* 接地阴影(跳起时缩小变淡) */
+    const shK = 1 / (1 + Math.max(0, s.jumpY) * 0.55);
+    const shP = G([0, 0.035, -0.02]);
+    addDisc(m, shP[0], shP[1], shP[2], 0.52 * shK, 1.05 * shK, [22, 32, 44], 0.30 * shK);
+    const fishSh = G([0, 0.045, 0.8]);
+    addDisc(m, fishSh[0], fishSh[1], fishSh[2], 0.24, 0.2, [22, 32, 44], 0.22 * shK);
+
+    const REAR = [0, wheelR, -0.6], FRONT = [0, wheelR, 0.62];
+    const CRANK = [0, 0.4, -0.02];
+    const a = s.pedAngle;
+    const pedFar = [0, CRANK[1] + Math.cos(a + Math.PI) * 0.17, CRANK[2] + Math.sin(a + Math.PI) * 0.17];
+    const pedNear = [0, CRANK[1] + Math.cos(a) * 0.17, CRANK[2] + Math.sin(a) * 0.17];
+
+    /* --- 车轮 --- */
+    const wheelMesh = (cx, cy, cz, ang) => {
+      addTorus(m, ...G([cx, cy, cz]), wheelR, 0.033, C.tire, { plane: 'yz', seg: 18, side: 5 });
+      addTorus(m, ...G([cx, cy, cz]), wheelR - 0.028, 0.012, C.rim, { plane: 'yz', seg: 18, side: 4 });
+      for (let i = 0; i < 7; i++) {
+        const sa = ang + (i / 7) * Math.PI * 2;
+        const rim = [cx + 0.015, cy + Math.cos(sa) * (wheelR - 0.04), cz + Math.sin(sa) * (wheelR - 0.04)];
+        tube([cx + 0.015, cy, cz], rim, 0.006, 0.006, C.rim, { seg: 3, cap: false, ds: true });
+      }
+      ell([cx, cy, cz], 0.05, 0.05, 0.05, C.metal, { lat: 4, lon: 6 });
+    };
+    wheelMesh(...REAR, s.wheel);
+    wheelMesh(...FRONT, s.wheel);
+
+    /* --- 挡泥板 --- */
+    addTorus(m, ...G([REAR[0], REAR[1], REAR[2]]), wheelR + 0.05, 0.02, C.metal,
+      { plane: 'yz', seg: 14, side: 4, arc0: Math.PI * 0.62, arc1: Math.PI * 1.98 });
+    addTorus(m, ...G([FRONT[0], FRONT[1], FRONT[2]]), wheelR + 0.05, 0.02, C.metal,
+      { plane: 'yz', seg: 14, side: 4, arc0: Math.PI * 1.1, arc1: Math.PI * 2.4 });
+
+    /* --- 车架 --- */
+    const SADDLE = [0, 1.0, -0.3], HEADTOP = [0, 0.98, 0.52];
+    tube(CRANK, REAR, 0.025, 0.025, C.frame, { seg: 5, cap: false });          // 后下叉
+    tube(CRANK, [0, 0.78, -0.27], 0.028, 0.024, C.frame, { seg: 5, cap: false }); // 座管
+    tube([0, 0.78, -0.27], SADDLE, 0.022, 0.02, C.frame, { seg: 4, cap: false });
+    tube(CRANK, [0, 0.86, 0.46], 0.028, 0.024, C.frame, { seg: 5, cap: false }); // 下管
+    tube([0, 0.86, 0.46], HEADTOP, 0.026, 0.024, C.frame, { seg: 5, cap: false });
+    tube(SADDLE, HEADTOP, 0.022, 0.02, C.frame, { seg: 4, cap: false });        // 上管
+    tube(HEADTOP, [0, 0.55, 0.6], 0.026, 0.022, C.frame, { seg: 5, cap: false });// 头管+前叉
+    tube([0, 0.55, 0.6], FRONT, 0.02, 0.018, C.frame, { seg: 4, cap: false });
+    // 后叉(座撑)
+    tube([0, 0.9, -0.28], REAR, 0.018, 0.016, C.frame, { seg: 4, cap: false });
+
+    /* --- 牙盘 / 曲柄 / 脚踏 --- */
+    ell([CRANK[0], CRANK[1], CRANK[2]], 0.015, 0.13, 0.13, C.frame, { lat: 4, lon: 8, ds: true });
+    const crankArm = (ped, ph) => {
+      const pa = [0, CRANK[1] + Math.cos(a + ph) * 0.1, CRANK[2] + Math.sin(a + ph) * 0.1];
+      tube(pa, ped, 0.014, 0.012, C.frame, { seg: 4, cap: false });
+      addBillboardQuad(m, G([ped[0] - 0.05, ped[1], ped[2] - 0.035]), G([ped[0] + 0.05, ped[1], ped[2] - 0.035]),
+        G([ped[0] + 0.05, ped[1], ped[2] + 0.035]), G([ped[0] - 0.05, ped[1], ped[2] + 0.035]), [38, 38, 42]);
+    };
+    crankArm(pedFar, Math.PI);
+    crankArm(pedNear, 0);
+    // 链条(简化两根)
+    tube([CRANK[0] + 0.02, CRANK[1] + 0.11, CRANK[2]], [REAR[0] + 0.02, REAR[1] + 0.08, REAR[2]], 0.008, 0.008, [50, 50, 55], { seg: 3, cap: false });
+    tube([CRANK[0] + 0.02, CRANK[1] - 0.11, CRANK[2]], [REAR[0] + 0.02, REAR[1] - 0.08, REAR[2]], 0.008, 0.008, [50, 50, 55], { seg: 3, cap: false });
+
+    /* --- 车座 --- */
+    ell([SADDLE[0], SADDLE[1] + 0.03, SADDLE[2]], 0.075, 0.035, 0.14, C.saddle, { lat: 4, lon: 7 });
+
+    /* --- 车把 / 车铃 / 车灯 --- */
+    const barY = 1.04, barZ = 0.56;
+    tube([HEADTOP[0], HEADTOP[1] + 0.03, HEADTOP[2]], [0, barY, barZ], 0.02, 0.018, C.frame, { seg: 4, cap: false });
+    tube([-0.27, barY, barZ + 0.02], [0.27, barY, barZ + 0.02], 0.016, 0.016, C.frame, { seg: 5, cap: false });
+    tube([-0.27, barY, barZ + 0.02], [-0.3, barY, barZ - 0.06], 0.021, 0.021, [58, 46, 44], { seg: 5 });
+    tube([0.27, barY, barZ + 0.02], [0.3, barY, barZ - 0.06], 0.021, 0.021, [58, 46, 44], { seg: 5 });
+    const bellPos = [0.16, barY + 0.03, barZ - 0.01];
+    ell(bellPos, 0.035, 0.03, 0.035, C.bell, { lat: 4, lon: 6 });
+    ell([0, 0.95, 0.68], 0.06, 0.06, 0.05, C.metal, { lat: 4, lon: 6 });
+    ell([0, 0.95, 0.705], 0.045, 0.045, 0.02, C.lamp, { lat: 4, lon: 6, unlit: true });
+
+    /* --- 车筐 + 鱼 --- */
+    const bx = 0, by = 0.84, bz = 0.8, hw = 0.2, bh = 0.18, bd = 0.14;
+    const quad = (p0, p1, p2, p3) => addBillboardQuad(m, G(p0), G(p1), G(p2), G(p3), C.basket);
+    quad([bx - hw, by, bz - bd], [bx + hw, by, bz - bd], [bx + hw, by - bh, bz - bd], [bx - hw, by - bh, bz - bd]);
+    quad([bx - hw, by, bz + bd], [bx + hw, by, bz + bd], [bx + hw, by - bh, bz + bd], [bx - hw, by - bh, bz + bd]);
+    quad([bx - hw, by, bz - bd], [bx - hw, by, bz + bd], [bx - hw, by - bh, bz + bd], [bx - hw, by - bh, bz - bd]);
+    quad([bx + hw, by, bz - bd], [bx + hw, by, bz + bd], [bx + hw, by - bh, bz + bd], [bx + hw, by - bh, bz - bd]);
+    quad([bx - hw, by - bh, bz - bd], [bx + hw, by - bh, bz - bd], [bx + hw, by - bh, bz + bd], [bx - hw, by - bh, bz + bd]);
+    for (const [fx, fz, fr] of [[-0.07, -0.02, 0.3], [0.08, 0.04, -0.2]]) {
+      ell([bx + fx, by - 0.02, bz + fz], 0.05, 0.03, 0.09, C.fishIn, { lat: 3, lon: 5, yaw: fr });
+    }
+    // 收获的鱼逐渐堆满车筐
+    const stack = [[0, -0.05, 0.08, 0.1], [-0.06, -0.09, -0.06, -0.15], [0.06, -0.11, 0.03, 0.2],
+      [-0.02, -0.14, -0.1, -0.05], [0.04, -0.16, 0.08, 0.25], [0, -0.05, -0.02, -0.3]];
+    const nStack = Math.min(6, s.fishCount || 0);
+    for (let i = 0; i < nStack; i++) {
+      const [sx2, sy2, sz2, sr2] = stack[i];
+      ell([bx + sx2, by + sy2, bz + sz2], 0.05, 0.028, 0.085, i % 2 ? C.fishIn : [176, 198, 210], { lat: 3, lon: 5, yaw: sr2 });
+    }
+
+    /* --- 鹈鹕 --- */
+    const bob = Math.sin(a) * 0.012;
+    // 躯干
+    ell([0, 1.2 + bob, -0.14], 0.27, 0.35, 0.46, C.body, { lat: 8, lon: 12, pitch: -0.12 });
+    ell([0, 1.28 + bob, -0.32], 0.22, 0.26, 0.3, C.bodyShade, { lat: 6, lon: 9, pitch: -0.3 });
+    // 尾羽
+    for (let i = -1; i <= 1; i++) {
+      ell([i * 0.07, 1.34 + bob + Math.abs(i) * 0.02, -0.62], 0.05, 0.045, 0.22, i % 2 ? C.body : C.bodyShade,
+        { lat: 3, lon: 5, pitch: 0.45 });
+    }
+    // 脖子(S 曲线)
+    const neckPts = [[0, 1.42 + bob, 0.02], [0, 1.62 + bob, 0.16], [0, 1.78 + bob, 0.24], [0, 1.9 + bob, 0.28]];
+    for (let i = 0; i < neckPts.length - 1; i++) {
+      const r0 = 0.11 - i * 0.012, r1 = 0.1 - i * 0.012;
+      tube(neckPts[i], neckPts[i + 1], r0, r1, C.body, { seg: 7, cap: false });
+    }
+    // 头
+    const HEAD = [0, 1.94 + bob, 0.3];
+    ell(HEAD, 0.185, 0.19, 0.2, C.body, { lat: 6, lon: 9 });
+    // 头盔
+    ell([0, 2.0 + bob, 0.27], 0.21, 0.17, 0.22, C.helmet, { lat: 6, lon: 9 });
+    ell([0, 1.965 + bob, 0.14], 0.13, 0.06, 0.09, C.helmetDark, { lat: 3, lon: 6 });   // 帽檐
+    // 眼
+    ell([-0.125, 1.95 + bob, 0.42], 0.026, 0.032, 0.026, C.eye, { lat: 3, lon: 4 });
+    ell([0.125, 1.95 + bob, 0.42], 0.026, 0.032, 0.026, C.eye, { lat: 3, lon: 4 });
+    // 喙 + 喉囊
+    const open = s.honk * 0.1;
+    ell([0, 1.9 + bob + open * 0.5, 0.6], 0.07, 0.05, 0.34, C.beak, { lat: 5, lon: 8, pitch: -0.03 - open });
+    ell([0, 1.9 + bob + open * 0.2, 0.48], 0.05, 0.03, 0.16, C.beakDark, { lat: 4, lon: 6, pitch: 0.1 });
+    const pk = 1 + s.honk * 0.85 + (s.pouch || 0) * 0.45;
+    ell([0, 1.82 + bob - open * 0.4, 0.55], 0.095, 0.13 * pk, 0.24 * (1 + s.honk * 0.35 + (s.pouch || 0) * 0.2), C.pouch,
+      { lat: 6, lon: 9, pitch: -0.15 });
+
+    /* --- 翅膀 --- */
+    const shL = [-0.24, 1.34 + bob, 0.08], shR = [0.24, 1.34 + bob, 0.08];
+    if (s.air > 0 || s.noHands) {
+      // 展翅(跳/特技)
+      const flap = Math.sin(t * 8) * 0.06;
+      const tipL = [-0.62 - flap, 1.62 + bob, 0.1], tipR = [0.62 + flap, 1.62 + bob, 0.1];
+      const midL = [-0.44, 1.5 + bob, 0.14], midR = [0.44, 1.5 + bob, 0.14];
+      tube(shL, midL, 0.085, 0.055, C.body, { seg: 6, cap: false });
+      tube(midL, tipL, 0.055, 0.012, C.bodyShade, { seg: 5, cap: false });
+      tube(shR, midR, 0.085, 0.055, C.body, { seg: 6, cap: false });
+      tube(midR, tipR, 0.055, 0.012, C.bodyShade, { seg: 5, cap: false });
+      for (let i = 0; i < 3; i++) {
+        tube([-0.44, 1.5 + bob, 0.1 - i * 0.045], [-0.66 - flap, 1.58 + bob - i * 0.05, 0.06 - i * 0.05], 0.02, 0.006, C.body, { seg: 3, cap: false });
+        tube([0.44, 1.5 + bob, 0.1 - i * 0.045], [0.66 + flap, 1.58 + bob - i * 0.05, 0.06 - i * 0.05], 0.02, 0.006, C.body, { seg: 3, cap: false });
+      }
+    } else if (s.noHands === false) {
+      // 扶把
+      const gripL = [-0.28, barY, barZ - 0.02], gripR = [0.28, barY, barZ - 0.02];
+      tube(shL, [-0.28, 1.18 + bob, 0.3], 0.08, 0.05, C.body, { seg: 6, cap: false });
+      tube([-0.28, 1.18 + bob, 0.3], gripL, 0.05, 0.028, C.bodyShade, { seg: 5, cap: false });
+      tube(shR, [0.28, 1.18 + bob, 0.3], 0.08, 0.05, C.body, { seg: 6, cap: false });
+      tube([0.28, 1.18 + bob, 0.3], gripR, 0.05, 0.028, C.bodyShade, { seg: 5, cap: false });
+      for (let i = 0; i < 3; i++) {
+        tube(gripL, [-0.24 - i * 0.03, barY + 0.02 - i * 0.02, barZ - 0.1 - i * 0.03], 0.016, 0.004, C.body, { seg: 3, cap: false });
+        tube(gripR, [0.24 + i * 0.03, barY + 0.02 - i * 0.02, barZ - 0.1 - i * 0.03], 0.016, 0.004, C.body, { seg: 3, cap: false });
+      }
+    }
+
+    /* --- 腿(IK 踩踏) --- */
+    const LEG1 = 0.4, LEG2 = 0.42;
+    const hipY = 1.02 + bob, hipZ = -0.16;
+    for (const side of [-1, 1]) {
+      const ped = side < 0 ? pedFar : pedNear;
+      const hip = [side * 0.14, hipY, hipZ];
+      const foot = [side * 0.12, ped[1] + 0.03, ped[2]];
+      const dy = foot[1] - hip[1], dz = foot[2] - hip[2];
+      let d = Math.hypot(dy, dz);
+      const dc = Math.min(LEG1 + LEG2 - 0.01, Math.max(0.05, d));
+      const angA = Math.atan2(dz, dy);                       // (y,z) 平面角
+      const cosK = Math.min(1, Math.max(-1, (LEG1 * LEG1 + dc * dc - LEG2 * LEG2) / (2 * LEG1 * dc)));
+      const kneeAng = angA + Math.acos(cosK);
+      const knee = [side * 0.15, hip[1] + Math.cos(kneeAng) * LEG1, hip[2] + Math.sin(kneeAng) * LEG1];
+      const dark = side < 0;
+      const legCol = dark ? [216, 128, 46] : C.leg;
+      tube(hip, knee, 0.055, 0.042, legCol, { seg: 6, cap: false });
+      tube(knee, foot, 0.04, 0.028, legCol, { seg: 5, cap: false });
+      // 蹼足
+      ell([foot[0], ped[1] + 0.015, ped[2] + 0.05], 0.055, 0.02, 0.1, dark ? [228, 138, 50] : [250, 168, 74], { lat: 3, lon: 5 });
+    }
+
+    /* --- 围巾 --- */
+    updateScarf(Math.min(0.033, 1 / 60), G([0, 1.46 + bob, -0.12]), s.speed, t);
+    const scarfMesh = buildScarfMesh();
+
+    return {
+      mesh: m, scarfMesh,
+      head: G(HEAD), saddle: G(SADDLE), bellPos: G(bellPos),
+    };
+  }
+
+  PT.pelican3d = { build, scarf };
+})();
+
+</script>
+  <script>
+/* ============================================================
+   fish3d.js — 沿车道游动的鱼(变道抓取)+ 点击海面跃起的鱼
+   车道 x ∈ {-2.2, 0, 2.2};鱼从远处 z=+140 游向玩家(z 相对递减)
+   ============================================================ */
+(function () {
+  'use strict';
+  const PT = (window.PT = window.PT || {});
+  const { v3, makeMesh, addEllipsoid, addDisc } = PT.E3;
+
+  const LANES = [-2.2, 0, 2.2];
+  const F = { list: [], leapers: [], caught: 0, goldenCaught: 0, nextIn: 1.5 };
+
+  function spawnFish(golden) {
+    const lane = (Math.random() * 3) | 0;
+    F.list.push({
+      golden: !!golden,
+      lane,
+      x: LANES[lane],
+      z: 130 + Math.random() * 30,
+      y: 0.16,
+      ph: Math.random() * 9,
+      wig: Math.random() * 9,
+    });
+  }
+
+  function reset() {
+    F.list.length = 0;
+    F.leapers.length = 0;
+    F.nextIn = 1.2;
+    for (let i = 0; i < 4; i++) spawnFish(false);
+  }
+
+  function update(dt, speed, playerLane, playerZ) {
+    F.nextIn -= dt;
+    if (F.nextIn <= 0) {
+      spawnFish(Math.random() < 0.12);
+      F.nextIn = 2.2 + Math.random() * 3.4;
+    }
+    for (let i = F.list.length - 1; i >= 0; i--) {
+      const f = F.list[i];
+      f.z -= dt * (speed * 0.42 + 3.2);           // 相对玩家后退
+      f.wig += dt * 9;
+      f.y = 0.16 + Math.sin(f.ph + performance.now() * 0.002) * 0.03;
+      // 抓到(同车道 & 距离近 & 贴地)
+      if (f.z < 1.2 && f.z > -1.6 && f.lane === playerLane && playerZ < 0.4) {
+        F.caught++;
+        if (f.golden) F.goldenCaught++;
+        F.list.splice(i, 1);
+        f.eaten = true;
+        F.onCatch && F.onCatch(f);
+        continue;
+      }
+      if (f.z < -14) F.list.splice(i, 1);
+    }
+    // 跃起的鱼(点击海面)
+    for (let i = F.leapers.length - 1; i >= 0; i--) {
+      const l = F.leapers[i];
+      l.t += dt;
+      l.vy -= 9.8 * dt;
+      l.y += l.vy * dt;
+      l.x += l.vx * dt;
+      l.spin += dt * 6;
+      if (l.y < -0.4) F.leapers.splice(i, 1);
+    }
+  }
+
+  function leapAt(x, z) {
+    F.leapers.push({ x, z: z + 6, y: -0.2, vx: (Math.random() - 0.5) * 1.4, vy: 4.6 + Math.random() * 1.6, spin: 0, t: 0 });
+    if (F.leapers.length > 7) F.leapers.shift();
+  }
+
+  /* 鱼群来袭:多车道撒一波 */
+  function frenzy() {
+    for (let i = 0; i < 6; i++) {
+      const lane = (Math.random() * 3) | 0;
+      F.list.push({
+        golden: Math.random() < 0.35,
+        lane,
+        x: LANES[lane],
+        z: 22 + i * 4 + Math.random() * 3,
+        y: 0.16, ph: Math.random() * 9, wig: Math.random() * 9,
+      });
+    }
+  }
+
+  function buildMeshes() {
+    const out = [];
+    for (const f of F.list) {
+      const m = makeMesh();
+      const col = f.golden ? [250, 200, 70] : [188, 216, 228];
+      const fin = f.golden ? [230, 170, 50] : [140, 172, 188];
+      const bobY = f.y + Math.sin(f.wig * 0.4) * 0.02;
+      addEllipsoid(m, f.x, bobY, f.z, 0.09, 0.08, 0.2, col, { lat: 4, lon: 7 });
+      addEllipsoid(m, f.x, bobY, f.z + 0.24, 0.03, 0.09, 0.07, fin, { lat: 3, lon: 5 });
+      addEllipsoid(m, f.x, bobY + 0.075, f.z + 0.05, 0.02, 0.045, 0.03, fin, { lat: 3, lon: 4 });
+      if (f.golden) {
+        addEllipsoid(m, f.x, bobY, f.z, 0.15, 0.14, 0.3, [255, 230, 150], { lat: 4, lon: 7, ds: true, alpha: 0.22, unlit: true });
+      }
+      addDisc(m, f.x, 0.02, f.z, 0.14, 0.2, [22, 32, 44], 0.16);   // 鱼影
+      out.push(m);
+    }
+    for (const l of F.leapers) {
+      const m = makeMesh();
+      addEllipsoid(m, l.x, l.y, l.z, 0.1, 0.09, 0.22, [188, 216, 228], { lat: 4, lon: 7, yaw: l.spin });
+      addEllipsoid(m, l.x, l.y, l.z + 0.26, 0.03, 0.1, 0.08, [140, 172, 188], { lat: 3, lon: 5, yaw: l.spin });
+      out.push(m);
+    }
+    return out;
+  }
+
+  PT.fish3d = { F, reset, update, buildMeshes, leapAt, frenzy, LANES };
+})();
+
+</script>
+  <script>
+/* ============================================================
+   audio3.js — 生成式音乐 + 音效(WebAudio 全合成,无外部文件)
+   音乐:五声音阶琶音 + 低音,节奏跟随踏频
+   ============================================================ */
+(function () {
+  'use strict';
+  const PT = (window.PT = window.PT || {});
+  const A = { ctx: null, master: null, musicGain: null, muted: true, seqTimer: null, step: 0, cadence: 60 };
+
+  function ensure() {
+    if (!A.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      A.ctx = new AC();
+      A.master = A.ctx.createGain();
+      A.master.gain.value = 0;
+      A.master.connect(A.ctx.destination);
+      A.musicGain = A.ctx.createGain();
+      A.musicGain.gain.value = 0.5;
+      A.musicGain.connect(A.master);
+      startSea();
+    }
+    if (A.ctx.state === 'suspended') A.ctx.resume();
+    return true;
+  }
+
+  function setMuted(m) {
+    A.muted = m;
+    if (!m) {
+      if (!ensure()) return;
+      A.master.gain.cancelScheduledValues(A.ctx.currentTime);
+      A.master.gain.linearRampToValueAtTime(0.85, A.ctx.currentTime + 0.5);
+      if (!A.seqTimer) seqLoop();
+    } else if (A.ctx) {
+      A.master.gain.cancelScheduledValues(A.ctx.currentTime);
+      A.master.gain.linearRampToValueAtTime(0, A.ctx.currentTime + 0.3);
+    }
+  }
+
+  function noiseBuffer(dur) {
+    const ctx = A.ctx;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  /* 海浪环境 */
+  function startSea() {
+    const ctx = A.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(3);
+    src.loop = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 380;
+    const g = ctx.createGain();
+    g.gain.value = 0.05;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.12;
+    const lg = ctx.createGain();
+    lg.gain.value = 0.03;
+    lfo.connect(lg).connect(g.gain);
+    src.connect(lp).connect(g).connect(A.master);
+    src.start();
+    lfo.start();
+  }
+
+  /* ---------- 生成式音乐 ---------- */
+  const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];      // 大调五声
+  const BASS = [-24, -17, -12, -17];
+  const noteHz = (semi) => 440 * Math.pow(2, semi / 12);
+
+  function pluck(hz, t0, vol, dur) {
+    const ctx = A.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = hz;
+    const o2 = ctx.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.value = hz * 2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0, t0);
+    g2.gain.linearRampToValueAtTime(vol * 0.3, t0 + 0.01);
+    g2.gain.exponentialRampToValueAtTime(0.001, t0 + dur * 0.6);
+    o.connect(g).connect(A.musicGain);
+    o2.connect(g2).connect(A.musicGain);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+    o2.start(t0); o2.stop(t0 + dur * 0.7);
+  }
+
+  function seqLoop() {
+    if (!A.ctx) return;
+    const interval = Math.max(0.16, Math.min(0.42, 60 / A.cadence / 2));   // 随踏频
+    A.seqTimer = setTimeout(() => {
+      if (!A.muted) {
+        const t0 = A.ctx.currentTime + 0.02;
+        const st = A.step++;
+        const deg = SCALE[(st * 3 + ((st >> 3) * 2)) % SCALE.length];
+        if (st % 8 === 0) pluck(noteHz(BASS[(st >> 3) % 4]), t0, 0.16, 0.9);
+        pluck(noteHz(deg - 12), t0, 0.11, 0.5);
+        if (st % 4 === 2) pluck(noteHz(SCALE[(st * 5 + 2) % SCALE.length] - 12), t0 + interval / 2, 0.07, 0.3);
+      }
+      seqLoop();
+    }, interval * 1000);
+  }
+
+  function setCadence(rpm) { A.cadence = Math.max(30, Math.min(140, rpm)); }
+
+  /* ---------- 音效 ---------- */
+  function bell() {
+    if (!ensure() || A.muted) return;
+    const ctx = A.ctx, t0 = ctx.currentTime;
+    for (const [dt, f] of [[0, 1680], [0.13, 1350]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t0 + dt);
+      g.gain.linearRampToValueAtTime(0.16, t0 + dt + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dt + 0.55);
+      o.connect(g).connect(A.master);
+      o.start(t0 + dt); o.stop(t0 + dt + 0.6);
+    }
+  }
+
+  function honk() {
+    if (!ensure() || A.muted) return;
+    const ctx = A.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(430, t0);
+    o.frequency.exponentialRampToValueAtTime(175, t0 + 0.42);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 660;
+    bp.Q.value = 1.3;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.17, t0 + 0.03);
+    g.gain.setValueAtTime(0.15, t0 + 0.24);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.52);
+    o.connect(bp).connect(g).connect(A.master);
+    o.start(t0); o.stop(t0 + 0.56);
+  }
+
+  function blip(golden) {
+    if (!ensure() || A.muted) return;
+    const ctx = A.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(golden ? 1050 : 880, t0);
+    o.frequency.exponentialRampToValueAtTime(golden ? 2100 : 1420, t0 + 0.09);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.13, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.18);
+    o.connect(g).connect(A.master);
+    o.start(t0); o.stop(t0 + 0.2);
+    if (golden) {
+      const o2 = ctx.createOscillator();
+      o2.type = 'sine';
+      o2.frequency.setValueAtTime(1560, t0 + 0.09);
+      o2.frequency.exponentialRampToValueAtTime(2600, t0 + 0.2);
+      const g2 = ctx.createGain();
+      g2.gain.setValueAtTime(0.12, t0 + 0.09);
+      g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+      o2.connect(g2).connect(A.master);
+      o2.start(t0 + 0.09); o2.stop(t0 + 0.32);
+    }
+  }
+
+  function whoosh() {
+    if (!ensure() || A.muted) return;
+    const ctx = A.ctx, t0 = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    n.buffer = noiseBuffer(0.3);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.6;
+    f.frequency.setValueAtTime(600, t0);
+    f.frequency.exponentialRampToValueAtTime(2200, t0 + 0.24);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.09, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+    n.connect(f).connect(g).connect(A.master);
+    n.start(t0); n.stop(t0 + 0.3);
+  }
+
+  function splash() {
+    if (!ensure() || A.muted) return;
+    const ctx = A.ctx, t0 = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    n.buffer = noiseBuffer(0.4);
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 800;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.14, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+    n.connect(f).connect(g).connect(A.master);
+    n.start(t0); n.stop(t0 + 0.4);
+  }
+
+  function gull() {
+    if (!ensure() || A.muted) return;
+    const ctx = A.ctx, t0 = ctx.currentTime;
+    for (const [dt, f1, f2] of [[0, 1250, 850], [0.22, 1150, 720]]) {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(f1, t0 + dt);
+      o.frequency.exponentialRampToValueAtTime(f2, t0 + dt + 0.16);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t0 + dt);
+      g.gain.linearRampToValueAtTime(0.05, t0 + dt + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dt + 0.2);
+      o.connect(g).connect(A.master);
+      o.start(t0 + dt); o.stop(t0 + dt + 0.24);
+    }
+  }
+
+  PT.audio3 = { ensure, setMuted, bell, honk, blip, whoosh, splash, gull, setCadence, A };
+})();
+
+</script>
+  <script>
+/* ============================================================
+   game.js — 鹈鹕骑单车 · 总控制器
+   操控:W/S 加减速  A/D 变道  空格 跳跃  T 撒把特技
+        Q/E 档位  H 鹈鹕叫  B 车铃  C 镜头  N 时间快进
+        M 音乐  K 拍照  P 暂停  U 隐藏界面  F 全屏
+   闲置 6 秒:鹈鹕自己追鱼巡航
+   ============================================================ */
+(function () {
+  'use strict';
+  const PT = (window.PT = window.PT || {});
+  const { v3 } = PT.E3;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  const GEARS = [2.6, 3.4, 4.2, 5.0, 5.8];        // 传动比 → 最大速度 m/s
+  const LANES = [-2.2, 0, 2.2];
+  const CAM_NAMES = ['自由环绕', '追随', '侧面跟拍', '电影运镜', '鹈鹕视角'];
+
+  const S = {
+    mode: 'title',            // title | riding
+    paused: false, hideUI: false,
+    speed: 4.2, targetSpeed: 4.2, gear: 2,
+    lane: 1, laneX: 0, lean: 0,
+    jumpY: 0, jumpV: 0, air: false,
+    pedAngle: 0, wheel: 0, cad: 62,
+    honk: 0, bell: 0, noHands: 0, pouchKick: 0,
+    combo: 0, comboT: 0, gullT: 8,
+    camMode: 3, camDrag: false, yaw: 0.42, pitch: 0.24, dist: 5.2,
+    t: 0, idleT: 0,
+    caught: 0, golden: 0,
+    autoNote: 0,
+  };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+
+  /* ---------- 成就 ---------- */
+  const ACH = [
+    ['first', '出发!第一次骑行', () => true],
+    ['fish1', '第一条鱼', () => S.caught >= 1],
+    ['fish10', '小鱼 ×10', () => S.caught >= 10],
+    ['fish30', '小鱼 ×30', () => S.caught >= 30],
+    ['golden', '捕到金鱼!', () => S.golden >= 1],
+    ['jump', '起跳', () => S._jumped],
+    ['stunt', '撒把特技', () => S._stunted],
+    ['bell', '叮铃铃', () => S._belled],
+    ['honk', '嘎——', () => S._honked],
+    ['fast', '时速 25km/h+', () => S.speed * 3.6 >= 25],
+    ['km1', '骑行 1 公里', () => PT.world3d.W.scrollZ >= 1000],
+    ['night', '夜骑骑士', () => PT.world3d.W.env.isNight && S.mode === 'riding'],
+    ['cam', '换过 4 种镜头', () => S._cams >= 4],
+    ['leap', '点了海面,鱼跃出', () => S._leap],
+  ];
+  const achState = { got: {} };
+  function checkAch() {
+    for (const [id, name, cond] of ACH) {
+      if (!achState.got[id] && cond()) {
+        achState.got[id] = true;
+        store.set('pelican3d.ach', JSON.stringify(Object.keys(achState.got)));
+        toast(`🏅 成就解锁:${name}`);
+        renderAch();
+      }
+    }
+  }
+  function loadAch() {
+    try { achState.got = JSON.parse(store.get('pelican3d.ach') || '{}'); } catch (e) { achState.got = {}; }
+  }
+  function gotCount() {
+    let n = 0;
+    for (const [id] of ACH) if (achState.got[id]) n++;
+    return n;
+  }
+  function renderAch() {
+    const el = document.getElementById('achList');
+    el.innerHTML = ACH.map(([id, name]) =>
+      `<div class="ach ${achState.got[id] ? 'on' : ''}">${achState.got[id] ? '🏅' : '🔒'} ${name}</div>`).join('');
+    document.getElementById('achCount').textContent = `${gotCount()}/${ACH.length}`;
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  /* ---------- 相机 ---------- */
+  const cam = PT.E3.makeCamera();
+  const camState = { cine: 0 };
+
+  function updateCamera(dt) {
+    const P = pelicanRef;
+    const head = P ? P.head : [0, 1.9, 0.3];
+    const bikePos = [S.laneX, 0.9 + S.jumpY, 0];
+    const speedK = S.speed / 8;
+    if (S.camDrag || S.camMode === 0) {
+      // 自由环绕
+      const d = S.dist;
+      const cy = 0.9 + S.jumpY + Math.sin(S.pitch) * d;
+      cam.pos = [
+        bikePos[0] + Math.sin(S.yaw) * Math.cos(S.pitch) * d,
+        cy,
+        bikePos[2] - Math.cos(S.yaw) * Math.cos(S.pitch) * d,
+      ];
+      cam.target = [bikePos[0], 1.1 + S.jumpY, bikePos[2] + 0.6];
+      cam.fov = 55;
+    } else if (S.camMode === 1) {
+      // 追随(更贴近)
+      const tx = bikePos[0] * 0.6;
+      cam.pos = [lerp(cam.pos[0], tx, dt * 3), 1.85 + S.jumpY * 0.7, -3.9 - speedK * 0.7];
+      cam.target = [bikePos[0] * 0.7, 1.1 + S.jumpY, bikePos[2] + 2.4];
+      cam.fov = 50 + speedK * 3;
+    } else if (S.camMode === 2) {
+      // 侧面跟拍
+      cam.pos = [bikePos[0] - 4.1, 1.3 + S.jumpY * 0.5, 0.4 + Math.sin(S.t * 0.4) * 0.8];
+      cam.target = [bikePos[0], 1.1 + S.jumpY, 0.2];
+      cam.fov = 44;
+    } else if (S.camMode === 3) {
+      // 电影运镜:缓慢环绕摇摆(更近)
+      camState.cine += dt * 0.13;
+      const a = 0.9 + Math.sin(camState.cine) * 0.55;
+      const d = 3.5 + Math.sin(camState.cine * 0.7) * 1.2;
+      cam.pos = [
+        bikePos[0] + Math.sin(a) * d,
+        1.0 + Math.sin(camState.cine * 0.5) * 0.6 + S.jumpY,
+        bikePos[2] - Math.cos(a) * d + 0.5,
+      ];
+      cam.target = [bikePos[0], 1.15 + S.jumpY, bikePos[2] + 0.4];
+      cam.fov = 46;
+    } else {
+      // 鹈鹕视角
+      const fwd = [Math.sin(S.lean * -2) * 0.4, 0, 1];
+      cam.pos = [head[0], head[1] + 0.12, head[2] + 0.15];
+      cam.target = v3.add(cam.pos, [S.laneX * 0.2 - cam.pos[0], -0.25, 6 + speedK * 2]);
+      cam.target[0] += Math.sin(S.t * 0.6) * 0.4;
+      cam.fov = 72;
+    }
+  }
+
+  /* ---------- 主更新 ---------- */
+  const input = { up: false, down: false, left: false, right: false };
+  let pelicanRef = null;
+
+  function update(dt) {
+    if (S.mode !== 'riding' || S.paused) { S.t += dt; return; }
+    S.t += dt;
+    const riding = true;
+
+    /* 闲置 → 自动驾驶 */
+    S.idleT += dt;
+    const auto = S.idleT > 6;
+    if (auto) {
+      // 找最近前方鱼的车道
+      let bestLane = S.lane, bestZ = 1e9;
+      for (const f of PT.fish3d.F.list) {
+        if (f.z > 4 && f.z < bestZ) { bestZ = f.z; bestLane = f.lane; }
+      }
+      if (bestZ < 1e9) {
+        if (bestLane > S.lane) { input.right = true; input.left = false; }
+        else if (bestLane < S.lane) { input.left = true; input.right = false; }
+        else { input.left = input.right = false; }
+      }
+      S.targetSpeed = 5.4;
+      S.autoNote += dt;
+      if (S.autoNote > 8) { S.autoNote = 0; toast('🐢 闲着也是闲着,鹈鹕自己追鱼去了'); }
+    } else {
+      S.targetSpeed = input.up ? GEARS[S.gear] + 0.8 : input.down ? 1.6 : GEARS[S.gear] * 0.55 + 1.2;
+    }
+
+    /* 速度 */
+    S.speed = lerp(S.speed, S.targetSpeed, dt * (S.speed < S.targetSpeed ? 0.9 : 1.8));
+    S.speed = clamp(S.speed, 1.2, GEARS[4] + 1);
+    /* 踏频 / 车轮 */
+    const gearRatio = GEARS[S.gear] / 4.2;
+    S.cad = clamp(S.speed * 14 / gearRatio, 24, 150);
+    PT.audio3.setCadence(S.cad);
+    S.pedAngle += (S.cad / 60) * Math.PI * 2 * dt;
+    S.wheel += (S.speed / 0.34) * dt;
+
+    /* 变道 */
+    if (input.left && S.lane > 0) { S.lane--; input.left = false; S.idleT = 0; }
+    if (input.right && S.lane < 2) { S.lane++; input.right = false; S.idleT = 0; }
+    S.laneX = lerp(S.laneX, LANES[S.lane], dt * 6);
+    S.lean = lerp(S.lean, clamp((LANES[S.lane] - S.laneX) * -0.14, -0.3, 0.3), dt * 8);
+
+    /* 跳跃 */
+    if (S.air) {
+      S.jumpV -= 16 * dt;
+      S.jumpY += S.jumpV * dt;
+      if (S.jumpY <= 0) { S.jumpY = 0; S.air = false; PT.audio3.whoosh(); }
+    }
+
+    /* 特技 */
+    if (S.noHands > 0) S.noHands -= dt;
+
+    /* 效果计时 */
+    if (S.honk > 0) S.honk = Math.max(0, S.honk - dt * 2.4);
+    if (S.bell > 0) S.bell = Math.max(0, S.bell - dt * 2);
+    if (S.pouchKick > 0) S.pouchKick = Math.max(0, S.pouchKick - dt * 1.5);
+    if (S.comboT > 0) { S.comboT -= dt; if (S.comboT <= 0) S.combo = 0; }
+
+    /* 偶尔一声海鸥叫 */
+    S.gullT -= dt;
+    if (S.gullT <= 0) { S.gullT = 7 + Math.random() * 9; PT.audio3.gull(); }
+
+    /* 世界与鱼 */
+    PT.world3d.update(dt, S.speed, S.t);
+    PT.fish3d.update(dt, S.speed, S.lane, S.jumpY);
+    updateCamera(dt);
+
+    checkAch();
+  }
+
+  function jump() {
+    if (S.mode !== 'riding' || S.air) return;
+    S.jumpV = 5.4;
+    S.air = true;
+    S._jumped = true;
+    S.idleT = 0;
+    PT.audio3.whoosh();
+  }
+  function doHonk() {
+    S.honk = 1;
+    S._honked = true;
+    S.idleT = 0;
+    PT.audio3.honk();
+  }
+  function doBell() {
+    S.bell = 1;
+    S._belled = true;
+    S.idleT = 0;
+    PT.audio3.bell();
+  }
+
+  /* ---------- 渲染 ---------- */
+  let canvas, ctx, vw, vh, dpr;
+  let lastFrameT = performance.now();
+
+  function render() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W3 = PT.world3d.W;
+    const env = W3.env;
+    PT.E3.updateBasis(cam);          // 星星/太阳投影需要相机基
+    PT.world3d.drawSky(ctx, vw, vh, cam, env, S.t);
+    const meshes = PT.world3d.collectMeshes();
+    pelicanRef = PT.pelican3d.build({
+      t: S.t, cad: S.cad, wheel: S.wheel, speed: S.speed,
+      laneX: S.laneX, jumpY: S.jumpY, lean: S.lean,
+      honk: S.honk, noHands: S.noHands > 0, air: S.air, pedAngle: S.pedAngle,
+      fishCount: S.caught, pouch: S.pouchKick,
+    });
+    meshes.push(pelicanRef.mesh, pelicanRef.scarfMesh);
+    for (const fm of PT.fish3d.buildMeshes()) meshes.push(fm);
+    PT.E3.render(ctx, cam, meshes, {
+      sunDir: env.sunDir, sunI: env.sunI, ambient: env.ambient,
+      fog: env.fog, fogNear: 55, fogFar: 210,
+    }, vw, vh);
+    PT.world3d.drawGlows(ctx, vw, vh, cam, env, S.t, S.laneX);
+    drawSpeedFX();
+  }
+
+  /* 高速时的速度线(径向拖影) */
+  function drawSpeedFX() {
+    const over = S.speed - 5.2;
+    if (over <= 0 || S.mode !== 'riding') return;
+    const k = Math.min(1, over / 2.2);
+    const n = Math.floor(4 + k * 10);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,255,255,${0.05 + k * 0.09})`;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r1 = Math.min(vw, vh) * (0.42 + Math.random() * 0.2);
+      const r2 = r1 + 60 + Math.random() * 130 * k;
+      const cx = vw / 2, cy = vh * 0.46;
+      ctx.lineWidth = 1 + Math.random() * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ---------- HUD ---------- */
+  function drawHUD() {
+    if (S.hideUI) return;
+    document.getElementById('hudSpeed').textContent = (S.speed * 3.6).toFixed(1);
+    document.getElementById('hudSpeed').style.color =
+      S.speed > 6.4 ? '#ffb45e' : S.speed > 5.4 ? '#ffe9a8' : '#ffffff';
+    document.getElementById('hudCad').textContent = Math.round(S.cad) + ' rpm';
+    document.getElementById('hudGear').textContent = (S.gear + 1) + ' 档';
+    document.getElementById('hudDist').textContent = (PT.world3d.W.scrollZ / 1000).toFixed(2) + ' km';
+    document.getElementById('hudCam').textContent = CAM_NAMES[S.camMode];
+    document.getElementById('hudFish').textContent = `🐟 ${S.caught}${S.golden ? ` · ✨${S.golden}` : ''}`;
+    const env = PT.world3d.W.env;
+    const hh = Math.floor(env.hour), mm = Math.floor((env.hour - hh) * 60);
+    document.getElementById('hudClock').textContent =
+      `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${env.isNight ? '🌙' : env.sunElev < 0.25 ? '🌅' : '☀️'}`;
+  }
+
+  /* ---------- 输入 ---------- */
+  function bindInput() {
+    const keymap = {
+      KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
+      KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
+    };
+    window.addEventListener('keydown', (e) => {
+      if (S.mode === 'title' && (e.code === 'Space' || e.code === 'Enter')) {
+        e.preventDefault();
+        startRiding();
+        return;
+      }
+      if (keymap[e.code]) {
+        e.preventDefault();
+        input[keymap[e.code]] = true;
+        S.idleT = 0;
+        return;
+      }
+      switch (e.code) {
+        case 'Space': e.preventDefault(); jump(); break;
+        case 'KeyQ': if (S.gear > 0) { S.gear--; toast(`换到 ${S.gear + 1} 档`); } break;
+        case 'KeyE': if (S.gear < 4) { S.gear++; toast(`换到 ${S.gear + 1} 档`); } break;
+        case 'KeyH': doHonk(); break;
+        case 'KeyB': doBell(); break;
+        case 'KeyT': if (!S.air) { S.noHands = 1.6; S._stunted = true; S.idleT = 0; PT.audio3.whoosh(); } break;
+        case 'KeyC': S.camMode = (S.camMode + 1) % 5; S._cams = Math.max(S._cams || 0, countCams()); toast('镜头:' + CAM_NAMES[S.camMode]); break;
+        case 'KeyN': PT.world3d.W.time += 3; toast('时间快进 3 小时'); break;
+        case 'KeyM': toggleMusic(); break;
+        case 'KeyK': takePhoto(); break;
+        case 'KeyP': S.paused = !S.paused; toast(S.paused ? '暂停' : '继续'); break;
+        case 'KeyU': S.hideUI = !S.hideUI; document.body.classList.toggle('noui', S.hideUI); break;
+        case 'KeyF': toggleFull(); break;
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (keymap[e.code]) input[keymap[e.code]] = false;
+    });
+    function countCams() { return Object.keys(S._camSet = S._camSet || {}).length; }
+
+    /* 鼠标:拖拽旋转 / 滚轮缩放 / 点击互动 */
+    let dragBtn = false, lastX = 0, lastY = 0, moved = 0;
+    canvas.addEventListener('pointerdown', (e) => {
+      dragBtn = true; moved = 0; lastX = e.clientX; lastY = e.clientY;
+      if (S.mode !== 'riding') return;
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!dragBtn) return;
+      const dx = e.clientX - lastX, dy = e.clientY - lastY;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (moved > 6) {
+        S.camDrag = true; S.camMode = 0;
+        S.yaw -= dx * 0.006;
+        S.pitch = clamp(S.pitch + dy * 0.004, -0.1, 1.2);
+      }
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    window.addEventListener('pointerup', (e) => {
+      if (dragBtn && moved <= 6 && S.mode === 'riding') clickWorld(e.clientX, e.clientY);
+      dragBtn = false;
+      setTimeout(() => { S.camDrag = false; }, 1200);
+    });
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      S.dist = clamp(S.dist + e.deltaY * 0.008, 2.2, 14);
+      S.camDrag = true; S.camMode = 0;
+      clearTimeout(S._wheelT);
+      S._wheelT = setTimeout(() => { S.camDrag = false; }, 1200);
+    }, { passive: false });
+
+    /* 按钮 */
+    document.getElementById('btnStart').addEventListener('click', () => { PT.audio3.ensure(); startRiding(); });
+    document.getElementById('btnMuteEnter').addEventListener('click', () => { PT.audio3.setMuted(true); startRiding(); });
+    document.getElementById('btnCam').addEventListener('click', () => { S.camMode = (S.camMode + 1) % 5; S._cams = Math.max(S._cams || 0, countCams()); });
+    document.getElementById('btnClockL').addEventListener('click', () => { PT.world3d.W.time -= 1; });
+    document.getElementById('btnClockR').addEventListener('click', () => { PT.world3d.W.time += 1; });
+    document.getElementById('btnMusic').addEventListener('click', toggleMusic);
+    document.getElementById('btnPhoto').addEventListener('click', takePhoto);
+    document.getElementById('btnFull').addEventListener('click', toggleFull);
+    document.getElementById('btnPause').addEventListener('click', () => { S.paused = !S.paused; });
+    document.getElementById('btnAch').addEventListener('click', () => {
+      document.getElementById('achPanel').classList.toggle('open');
+    });
+  }
+
+  function toggleMusic() {
+    const m = !PT.audio3.A.muted;
+    PT.audio3.setMuted(m);
+    document.getElementById('btnMusic').textContent = m ? '🎵' : '🔇';
+    if (!m) toast('音乐开启:节奏随踏频');
+  }
+  function toggleFull() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+  }
+
+  /* 点击世界:鹈鹕 / 车铃 / 海面 */
+  function clickWorld(cx, cy) {
+    const sx = cx * dpr, sy = cy * dpr;
+    // 鹈鹕头部附近 → 嘎
+    const headP = PT.E3.project(cam, vw, vh, pelicanRef ? pelicanRef.head : [0, 2, 0.3]);
+    if (headP && Math.hypot(headP.x - sx, headP.y - sy) < 110) { doHonk(); return; }
+    // 车铃
+    const bellP = PT.E3.project(cam, vw, vh, pelicanRef ? pelicanRef.bellPos : [0, 1, 0.5]);
+    if (bellP && Math.hypot(bellP.x - sx, bellP.y - sy) < 60) { doBell(); return; }
+    // 海面(屏幕右侧地平线下) → 鱼跃
+    const seaX = vw * 0.55;
+    const horizon = vh * 0.45;
+    if (sx > seaX && sy > horizon && sy < vh * 0.85) {
+      const z = 10 + ((sy - horizon) / (vh * 0.4)) * 30;
+      const x = PT.world3d.SEA_X + 4 + Math.random() * 18;
+      PT.fish3d.leapAt(x, z);
+      PT.audio3.splash();
+      S._leap = true;
+      return;
+    }
+  }
+
+  function takePhoto() {
+    PT.filmFlash = 1;
+    canvas.toBlob((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `pelican-3d-${Date.now() % 100000}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('📸 已保存照片');
+    }, 'image/png');
+  }
+
+  /* ---------- 流程 ---------- */
+  function startRiding() {
+    S.mode = 'riding';
+    document.getElementById('title').classList.add('gone');
+    document.body.classList.add('playing');
+    PT.audio3.setMuted(false);
+    document.getElementById('btnMusic').textContent = '🎵';
+  }
+
+  /* ---------- 主循环(后台降级) ---------- */
+  let driver = null, timerId = null, last = performance.now(), autoPaused = false;
+
+  function step(dt) {
+    if (PT.filmFlash > 0) {
+      PT.filmFlash = Math.max(0, PT.filmFlash - dt * 3);
+      ctx.fillStyle = `rgba(255,255,255,${PT.filmFlash * 0.9})`;
+      ctx.fillRect(0, 0, vw, vh);
+    }
+    update(dt);
+    render();
+    drawHUD();
+  }
+  function frame(now) {
+    const dt = clamp((now - last) / 1000, 0.001, 0.05);
+    last = now;
+    try {
+      if (!autoPaused) step(dt);
+      else render();
+    } catch (e) { /* 单帧失败不终止循环 */ }
+  }
+  function rafLoop(now) {
+    if (driver !== 'raf') return;
+    requestAnimationFrame(rafLoop);   // 先续链,单帧异常不杀循环
+    frame(now);
+  }
+  function timerLoop() {
+    if (driver !== 'timer') return;
+    timerId = setTimeout(timerLoop, 47);
+    frame(performance.now());
+  }
+  function setDriver(d) {
+    if (driver === d) return;
+    driver = d;
+    clearTimeout(timerId);
+    last = performance.now();
+    if (d === 'raf') requestAnimationFrame(rafLoop);
+    else timerId = setTimeout(timerLoop, 47);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (S.mode === 'riding') autoPaused = true; setDriver('timer'); }
+    else { autoPaused = false; resize(); setDriver('raf'); }
+  });
+
+  /* ---------- 启动 ---------- */
+  function boot() {
+    canvas = document.getElementById('stage');
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+
+    PT.world3d.init();
+    PT.fish3d.reset();
+    PT.fish3d.F.onCatch = (f) => {
+      S.caught++;
+      if (f.golden) S.golden++;
+      S.pouchKick = 1;
+      PT.audio3.blip(f.golden);
+      floatText(f.golden ? '+5 ✨' : '+1', f.golden ? '#ffd166' : '#bfe3ff');
+      // 连击奖励
+      S.combo = S.comboT > 0 ? S.combo + 1 : 1;
+      S.comboT = 2.2;
+      if (S.combo >= 3) floatText(`连击 ×${S.combo}`, '#ffd166');
+      if (S.combo > 0 && S.combo % 5 === 0) {
+        S.caught += 2;
+        toast(`🔥 连击 ×${S.combo}!奖励 +2 鱼`);
+      }
+      // 每收 10 条:鱼群来袭
+      if (S.caught - (S._frenzyAt || 0) >= 10) {
+        S._frenzyAt = S.caught;
+        PT.fish3d.frenzy();
+        toast('🐟 鱼群来袭!');
+      }
+    };
+    loadAch();
+    renderAch();
+    bindInput();
+    setDriver(document.hidden ? 'timer' : 'raf');
+    PT.main3d = {
+      S, testStep: (dt) => { const d = clamp(dt, 0.001, 0.05); update(d); render(); },
+      snapshot: (wCap) => {
+        const c = document.getElementById('stage');
+        const th = document.createElement('canvas');
+        th.width = wCap || 900;
+        th.height = Math.round(th.width * c.height / c.width);
+        th.getContext('2d').drawImage(c, 0, 0, th.width, th.height);
+        return th.toDataURL('image/jpeg', 0.72);
+      },
+    };
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    vw = window.innerWidth || 1440;
+    vh = window.innerHeight || 860;
+    if (vw < 50 || vh < 50) { vw = 1440; vh = 860; }   // 隐藏标签页兜底
+    canvas.width = Math.round(vw * dpr);
+    canvas.height = Math.round(vh * dpr);
+    canvas.style.width = vw + 'px';
+    canvas.style.height = vh + 'px';
+  }
+
+  function floatText(txt, col) {
+    const el = document.createElement('div');
+    el.className = 'float-txt';
+    el.textContent = txt;
+    el.style.color = col;
+    el.style.left = 50 + (Math.random() * 16 - 8) + '%';
+    el.style.top = 52 + '%';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  window.addEventListener('error', (e) => { window.__bootErr = e.message + ' @ ' + (e.filename || '').split('/').pop() + ':' + e.lineno; });
+})();
+
+</script>
+</body>
+</html>
